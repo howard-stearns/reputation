@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+  <head>
+    <title>Rate Me</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="node_modules/autocompleter/autocomplete.css">    
+    <link rel="stylesheet" href="style.css">
+  </head>
+
+  <body>
+    <template id="avatarTemplate">
+      <div class="avatar">
+        <div class="pictureBox">
+          <img src="http://simpleicon.com/wp-content/uploads/user1.png" alt="avatar"></img>
+          <i class="material-icons"></i>
+          <span>H</span>
+        </div>
+        <div class="dataDisplay">
+          <div class="cloud"></div>
+        </div>
+      </div>
+    </template>
+    <section id="picker" class="picker">
+      <div class="input slider">
+        <label for="nPeople">Total Number of People (including you)</label> <input type="number" id="nPeople" value="2" min="1"></input>
+      </div>
+      <div class="input slider">    
+        <label for="distance">Distance (meters)</label> <input type="number" id="distance" value="3000"></input> 
+      </div>
+
+      <div id="nearby"></div>
+      <div class="ratingOptions">
+        <div class="input"><label for="wordInput">or type a word</label> <input type="text" id="wordInput"></input></div>
+      </div>
+    </section>
+
+    <script src='https://croquet.studio/sdk/croquet-latest.min.js'></script>
+    <script src="node_modules/wordcloud/src/wordcloud2.js"></script>
+    <script src="node_modules/autocompleter/autocomplete.js"></script>
+    <script src="script.js"></script>
+
+  </body>
+
+</html>
