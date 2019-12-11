@@ -1,36 +1,47 @@
 'use strict';
 /* 
 TODO:
-- pick a user
+- Four dead people to choose from
+- Always show the nearest online: max of either 16 or within your accuracy (no slider)
 
 - online/offline w/position
 - filter picker display by n|distance
 
-- mobile layout
-- github pages availability
-
 - how do we set weightFactor? iterate?
 
 - settings: pick a picture, set initial
+- date of picture change
 - first-use: settings
 - pick your own three words
+
 
 - add to homescreen prompt 
   (https://stackoverflow.com/questions/47559051/ios-devices-add-website-to-homescreen-as-web-app-not-shortcut
    https://github.com/cubiq/add-to-homescreen,
    https://stackoverflow.com/questions/50332119/is-it-possible-to-make-an-in-app-button-that-triggers-the-pwa-add-to-home-scree/50356149#50356149)
+
 - QR code
-- n|distance sliders
+
+=> Good enough to be criticized?
 
 - share contact info
 - share interaction preferences
 - first-use: tour
 - pending words: collect for voting; secret password to show upvoted words and approve them
 - rate this app
+- lockout time (against revoting)
+- public figure of the day
 */
 
+// For this prototype, instead of an application-specific server that gives you just the data you need (of the potential billion users),
+// we just make sure that everyone has an in-memory copy of all the data. For that purpose we purpose, the prototype uses croquet.studio,
+// whose job it is to keep that in-memory copf of the models in sync, replicated it among all the users (either immediately, or when they
+// come online). This allows the prototype app to work without any application-specific server at all!
+
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
+
 Q.APP_VERSION = "RateMe 0.0.13"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `considerate courteous courageous adventurous
 inventive philosophical persistent practical sensible logical rational
@@ -40,7 +51,7 @@ impartial skilled exciting resourceful knowledgeable ambitious
 passionate exuberant frank generous persuasive approachable friendly
 gregarious wise`;
 
-class WordCountModel extends Croquet.Model { // Maintains a map of word => count
+class WordCountModel extends Croquet.Model { // Maintains a map of word => count, used for Userverse overall, and each User.
     init(options) {
         super.init(options);
         this.words = new Map();
@@ -50,20 +61,27 @@ class WordCountModel extends Croquet.Model { // Maintains a map of word => count
         this.words.set(word, was + increment);
     }
 }
-
     
-// All the users, and the data that is common to all users. Could have multiples if we want to support factions.
+// Database of the users, and the data that is common to all users (available words). Could have multiples if we want to support factions.
 class UserverseModel extends WordCountModel { 
     init(options) { // Initial data for this userverse.
-        console.log('UserverseModel#init', options, this);
+        console.log('init UserverseModel', options, this);
         super.init(options);
-        
-        this.words = new Map(Q.INITIAL_WORD_LIST.split(/\s/).map(word => [word, 0]));
-        // A list of all users. For demo and development, we start with a zero user so there is always at least one to play with.
-        this.users = []; //[UserModel.create({userId: 0})]; // subtle: no user with local storage will ever be userId:0.
-        for (let i = 0; i < 16; i++) { // FIXME
-            this.users.push(UserModel.create({userId: 0}));
-        }
+
+        // The list of blessed/localizeable words, with a word count so that they be ordered for autocomplete.
+        this.words = new Map(Q.INITIAL_WORD_LIST.split(/\s+/).map(word => [word, 0]));
+
+        // The list of all users.
+        this.users = [ // Set up some universally available dead people, so that there's always someone to work with.
+            {name: "Alan Turing", words: "curious logical resourceful knowledgeable persistent kind practical rational",
+             photo: "https://www.biography.com/.image/ar_1:1%2Cc_fill%2Ccs_srgb%2Cg_face%2Cq_auto:good%2Cw_300/MTE5NDg0MDU1MTUzMTE2Njg3/alan-turing-9512017-1-402.jpg"},
+            {name: "Oscar Wilde", words: "historian witty gregarious naturalist charming talented exuberant ernest adventurous",
+             photo: "https://www.biography.com/.image/c_limit%2Ccs_srgb%2Cq_auto:good%2Cw_1240/MTI1MjM3OTAwMDM1MDA0ODk0/oscar-wildejpg.webp"},
+            {name: "Cleopatra", words: "persuasive ambitious patriotic resourceful adaptable knowledgeable passionate exciting courageous adventurous persistent witty skilled",
+             photo: "https://patch.com/img/cdn/users/21124/2013/01/raw/76a17acb3967536fb4f87fb31c0be86b.jpg?width=725"},
+            {name: "Eleanor Roosevelt", words: "kind compassionate spiritual resourceful persuasive knowledgeable courageous",
+             photo: "http://www.firstladies.org/biographies/images/EleanorRoosevelt.jpg"}
+        ].map(options => UserModel.create(options));
 
         this.subscribe(this.sessionId, 'ensureUserId', this.ensureUserId);
     }
@@ -81,9 +99,19 @@ class UserverseModel extends WordCountModel {
 
 class UserModel extends WordCountModel { // Each user's data
     init(options) { // Initial random demo data.
-        console.log('UserModel#init', options, this);
+        console.log('init UserModel', options, this);
         super.init(options);
-        const userId = options.userId;
+        if (options.userId) this.initRandom(options);
+        else if (options.name) this.initDeadPerson(options);
+        this.subscribe(this.userId, 'rate', this.rate);
+    }
+    initDeadPerson({name, words, photo}) { // Set up as an always "online" person to play with.
+        this.userId = name;
+        this.initial = name[0];
+        this.photo = photo;
+        words.split(/\s+/).reverse().forEach((word, index) => this.incrementWordCount(word, index + 1));
+    }
+    initRandom({userId}) { // For demo purposes, start the suer with random data.
         this.userId = userId;
         this.initial = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 16)];
         this.color = this.random_hsl_color(10, 50);
@@ -101,7 +129,6 @@ class UserModel extends WordCountModel { // Each user's data
                 count = Math.ceil(this.random() * MAX_RANDOM_WEIGHT) || 1; // r endorsements for that word
             this.incrementWordCount(allWords[index], count);
         }
-        this.subscribe(userId, 'rate', this.rate);
     }
     random_hsl_color(min, max) {
       return 'hsl(' +
@@ -167,14 +194,15 @@ class UserView extends Croquet.View {
         const avatar = document.importNode(avatarTemplate.content.firstElementChild, true);
         this.avatar = avatar;
         avatar.querySelector('span').textContent = this.model.initial;
-        avatar.querySelector('img').style.backgroundColor = this.model.color;
+        const img = avatar.querySelector('img');
+        if (model.photo) img.src = model.photo;
+        else if (model.color) img.style.backgroundColor = model.color;
         avatar.onclick = () => this.toggleSelection();
     }
     toggleSelection() {
-        console.log('toggleSelection', this.avatar);
         const target = this.avatar, parent = target.parentElement;
         const index = Array.prototype.indexOf.call(parent.children, target);
-        const columnWidths = getComputedStyle(parent).gridTemplateColumns.split(/\s/);
+        const columnWidths = getComputedStyle(parent).gridTemplateColumns.split(/\s+/);
         const nColumns = columnWidths.length, column = index % nColumns, width = parseInt(columnWidths[column]);
         target.classList.toggle('selected');
         parent.classList.toggle('hasSelected');
@@ -183,20 +211,17 @@ class UserView extends Croquet.View {
         if (isSelected) this.initRater();
     }
     initRater() {
-        console.log('initRater', this);
         this.renderCloud();
         this.initAutocomplete();
     }
     
     showWordChoice(span, border, fontStyle, increment) {
-        console.log('updating', border, fontStyle, increment, span);
         span.style.border = border;
         span.style.fontStyle = fontStyle;
         this.publish(this.model.userId, 'rate', {word: span.textContent, increment: increment});
     }
     updateForNewSpanChoice(span, increment = 1, event) {
         const previousSpan = this.yourPick;
-        console.log('Switching choice from', previousSpan, 'to', span);
         if (previousSpan) {
             this.showWordChoice(previousSpan, "none", "normal", -1);
         }
@@ -226,14 +251,11 @@ class UserView extends Croquet.View {
     }
     renderCloud(selectedWord = null) {
         const user = this;
-        const dataDisplay = this.avatar.querySelector('.dataDisplay');
-        const cloud = dataDisplay.querySelector('.cloud');
+        const cloud = this.avatar.querySelector('.cloud');
         const list = user.cloudWordList();
         this.yourPick = null;
         cloud.innerHTML = ''; // Faster than removing each child, as it avoids multiple reflows.
-        dataDisplay.classList.add('on');
 
-        console.log('wordcloud ok:', WordCloud.isSupported, WordCloud.minFontSize, list);
         cloud.addEventListener('wordcloudstop', e => { // When rendering completes..
 
             // ...debug missing words. FIXME: should we re-render at lower weightFactor?
@@ -262,19 +284,16 @@ class UserView extends Croquet.View {
         const user = this,
               wordChoicesForAutocomplete = user.autocompleteWordList();
         wordInput.value = '';
-        console.log('setting autocomplete on', wordInput, 'over', wordChoicesForAutocomplete);
         autocomplete({
             input: wordInput,
             minLength: 1,
             fetch: function(text, update) {
                 text = text.toLowerCase();
                 var suggestions = wordChoicesForAutocomplete.filter(n => n.label.startsWith(text))
-                console.log('fetch for', text, 'suggesting', suggestions, 'to', update);
                 update(suggestions);
             },
             onSelect: function(item) {
                 const word = item.label
-                console.log('select', word);
                 wordInput.value = word;
                 function clickSpanIfFound(span) {
                     if (span.textContent === word) {

@@ -35,16 +35,14 @@ body {
     opacity: 0;
 }
 
-.avatar .pictureBox {
-    pointer-events: none;
-}
-.pictureBox img {
+.avatar img {
     border-radius: 50%;
     background-color: white;
     width: 100%;
     height: 100%;
+    object-fit: cover;
 }
-.pictureBox span {
+.avatar > span {
     line-height: 0.70;
     position: absolute;
     left: 0;
@@ -52,17 +50,17 @@ body {
     margin: 0;
     color: rgb(82, 202, 239);
 }
-.pictureBox i {
+.avatar > i {
     position: absolute;
     left: 0;
     top: 0;
     margin: 0;
+    color: rgba(29, 252, 127, 1);
 }
 .avatar i:after { content: "check_box" }
-.avatar i { color: rgba(29, 252, 127, 1); }
 
-.avatar:not(.selected) .dataDisplay { display: none }
-.dataDisplay .cloud {
+.avatar:not(.selected) .cloud { display: none }
+.avatar .cloud {
     width: 500px;
     height: 500px;
     /* WordCloud specifically sets the element position to relative. Cannot override here. */
