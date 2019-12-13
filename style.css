@@ -3,6 +3,11 @@ body {
     color: white;
     font-size: 32px;
 }
+input { font-size: 32px; }
+#setup {
+    background-color: white;
+    color: black;
+}    
 #nearby {
     /* Children with float: left do not animate smoothly when their
        changing size allows their row to change. So lock them into
@@ -10,7 +15,7 @@ body {
     display: grid;
     grid-template-columns: 200px 200px 200px 200px;
     width: 800px;
-    margin: auto
+    margin: auto;
 }
 
 .avatar {
@@ -42,6 +47,18 @@ body {
     height: 100%;
     object-fit: cover;
 }
+.settingsButton {
+    color: rgb(82, 202, 239);
+    border: none;
+}
+#goSettings {
+    background-color: black;
+    position: absolute;
+    right: 0
+}
+.settingsButton > i {
+    font-size: 48px;
+}    
 .avatar > span {
     line-height: 0.70;
     position: absolute;
@@ -58,8 +75,53 @@ body {
     color: rgba(29, 252, 127, 1);
 }
 .avatar i:after { content: "check_box" }
+#takeSelfie i:after { content: "photo_camera" }
+#acceptSelfie i:after { content: "check_circle_outline" }
+#retakeSelfie i:after { content: "autorenew" }
+.settingsButton i:after { content: "settings_applications" }
+.next i:after { content: "arrow_forward" }
+.back i:after { content: "arrow_back" }
+#takeSelfie { color: blue; }
+#retakeSelfie { color: red; }
+#acceptSelfie { color: green; }
+#selfieButtons {
+    position: relative;
+    bottom: 32px;
+    left: 0
+}
+#selfie {
+    position: relative;
+    margin: auto;
+    width: 400px;
+}
+#selfieVideo, #selfieImg {
+    height: 400px;
+    width: 400px;
+    border-radius: 50%;
+    display: block;
+    object-fit: cover;
+}
 
-.avatar:not(.selected) .cloud { display: none }
+#selfie.lineup #selfieImg,
+#selfie:not(.lineup) #selfieVideo,
+.avatar:not(.selected) .cloud,
+#nearby:not(.hasSelected) ~ .ratingOptions,
+#setup:not(.none) ~ #picker,
+#setup.none,
+#setup:not(.intro) #intro,
+#setup:not(.info) #info,
+#setup:not(.infoSettings) #infoSettings,
+#setup:not(.contact) #contact,
+#setup:not(.selfie) #selfie,
+#setup:not(.threeWords) #threeWords,
+#selfieCanvas
+{ display: none; }
+
+#setup {
+    margin: 10px;
+    padding: 10px;
+}
+
 .avatar .cloud {
     width: 500px;
     height: 500px;
@@ -69,9 +131,6 @@ body {
     z-index: 10;
 }
 
-#nearby:not(.hasSelected) ~ .ratingOptions {
-    display: none;
-}
 .ratingOptions {
     margin-top: 500px;
 }

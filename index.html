@@ -2,7 +2,7 @@
 <html lang="en" >
 
   <head>
-    <title>Rate Me</title>
+    <title>Know Me</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <link rel="stylesheet" href="autocomplete.css">
     <link rel="stylesheet" href="style.css">
@@ -17,11 +17,68 @@
         <div class="cloud"></div>
       </div>
     </template>
-    <section id="picker" class="picker">
+
+    <section id="setup" class="none">
+      
+      <div id="intro">
+        <p>Know Me helps you better understand someone that you are first meeting, using information provided by the person and by others like you.</p>
+        <p>The people nearest you are shown, if they have Know Me running.</p>
+        [[picture]]
+        <footer><button class="back"><i class="material-icons"></i></button> 1/6 <button class="next"><i class="material-icons"></i></button></footer>
+      </div>
+
+      <div id="info">
+        <p>When you pick someone, you are shown what other people have said.</p>
+        <p>After you've interacted with the person, you can pick one of these words that you agree with, or type in your own positive word. You can also pick the approval box. A check is shown for people who have been approved by people that you approve.</p>
+        [[picture]]
+        <footer><button class="back"><i class="material-icons"></i></button> 2/6 <button class="next"><i class="material-icons"></i></button></footer>
+      </div>
+      
+      <div id="infoSettings">
+        <p>There are no accounts or sign in. People nearby recognize you by your picture and initial only.</p>
+        <p>This info will be set up now. You can change it any time in "Settings": <button class="settingsButton"><i class="material-icons"></i></button></p>
+        <p>You can even reset entirely, or transfer to another device.</p>
+        
+        <footer><button class="back"><i class="material-icons"></i></button> 3/6 <button class="next"><i class="material-icons"></i></button></footer>
+      </div>
+      
+      <div id="contact">
+        <p>Other than your first initial, this info is shared <b>only if you explicitly share your contact info with a specific person</b>.</p>
+        <p>If you don't need to share contact info, everything except first initial is optional (and can be updated later).</p>
+        <div><label for="contactName">contact name</label> <input type="text" id="contactName" placeholder="first last"></input></div>
+        <div><i>more to come...</i></div>
+        <footer><button class="back"><i class="material-icons"></i></button> 4/6 <button class="next"><i class="material-icons"></i></button></footer>
+      </div>
+
+      <div id="selfie" class="lineup">
+        <p>We need a selfie so that strangers can recognize you among the nearby users.</p>
+        <video id="selfieVideo" autoplay playsinline poster="http://simpleicon.com/wp-content/uploads/user1.png"></video>
+        <canvas id="selfieCanvas"></canvas>
+        <img id="selfieImg"></img>
+        <div id="selfieButtons">
+          <button id="takeSelfie"><i class="material-icons"></i></button>
+          <button id="acceptSelfie"><i class="material-icons"></i></button>
+          <button id="retakeSelfie"><i class="material-icons"></i></button>          
+        </div>
+        <footer><button class="back"><i class="material-icons"></i></button> 5/6 <button class="next"><i class="material-icons"></i></button></footer>
+      </div>      
+
+      <div id="threeWords">
+        <p>Finally, you can suggest up to three words to describe yourself. These form the start of the word cloud that is shown to everyone who wants know about you (and who have Know Me open near you so that you can learn about them). You can change them at any time in "Settings".</p>
+        <div><input type="text" id="word1" placeholder="e.g., kind"></input></div>
+        <div><input type="text" id="word2" placeholder="e.g., talented"></input></div>
+        <div><input type="text" id="word3" placeholder="e.g., reliable"></input></div>
+        <footer><button class="back"><i class="material-icons"></i></button> 6/6 <button class="next"><i class="material-icons"></i></button></footer>
+      </div>
+
+    </section>
+
+    <section id="picker">
       <div id="nearby"></div>
       <div class="ratingOptions">
         <div class="input"><label for="wordInput">or type a word</label> <input type="text" id="wordInput"></input></div>
       </div>
+      <div><button id="goSettings" class="settingsButton"><i class="material-icons"></i></button></div>
     </section>
 
     <script src='https://croquet.studio/sdk/croquet-latest.min.js'></script>
