@@ -1,33 +1,38 @@
 'use strict';
 /* 
 TODO:
-- date of picture change
-- lower res pictures, and jpeg?
 
 - Always show the nearest online: max of either 16 or within your accuracy (no slider)
 - online/offline w/position
 - filter picker display by n|distance
 
-- endorse pick/display
-- share contact info
+- fix "accept" picture confusion
 
 - how do we set weightFactor? iterate?
+
+- endorse pick/display
 
 - add to homescreen prompt 
   (https://stackoverflow.com/questions/47559051/ios-devices-add-website-to-homescreen-as-web-app-not-shortcut
    https://github.com/cubiq/add-to-homescreen,
    https://stackoverflow.com/questions/50332119/is-it-possible-to-make-an-in-app-button-that-triggers-the-pwa-add-to-home-scree/50356149#50356149)
 
+- share contact info
 - QR code
+
+- date of picture change
+- lower res pictures, and jpeg?
 - better picture of eleanor
+
 - setup cleanup
 
 => Good enough to be criticized?
 
+- should we show yourself with the nearby, or only in settings, or what?
 - share interaction preferences
 - pending words: collect for voting; secret password to show upvoted words and approve them
 - rate this app
-- lockout time (against revoting)
+- lockout time (against re-voting)
 - public figure of the day
 
 TBD:
@@ -44,7 +49,7 @@ const Q = Croquet.Constants; // Shared among all participants, and part of the h
 Q.APP_VERSION = "KnowMe 0.0.21"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
-Q.INITIAL_WORD_LIST = `considerate courteous courageous adventurous
+Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
 inventive philosophical persistent practical sensible logical rational
 sincere ernest unassuming funny witty clever kind compassionate
 empathetic sympathetic talented adaptable reliable diligent fair
@@ -75,24 +80,32 @@ class UserverseModel extends WordCountModel {
         // The list of all users.
         this.users = [ // Set up some universally available dead people, so that there's always someone to work with.
             {name: "Alan Turing", words: "curious logical resourceful knowledgeable persistent kind practical rational",
+             position: [51.9977, 0.7407],
              photo: "https://www.biography.com/.image/ar_1:1%2Cc_fill%2Ccs_srgb%2Cg_face%2Cq_auto:good%2Cw_300/MTE5NDg0MDU1MTUzMTE2Njg3/alan-turing-9512017-1-402.jpg"},
             {name: "Oscar Wilde", words: "historian witty gregarious naturalist charming talented exuberant ernest adventurous",
+             position: [48.860000, 2.396000],
              photo: "https://www.onthisday.com/images/people/oscar-wilde-medium.jpg"},
             {name: "Cleopatra", words: "persuasive ambitious patriotic resourceful adaptable knowledgeable passionate exciting courageous adventurous persistent witty skilled",
+             position: [31.200000, 29.916667],
              photo: "https://patch.com/img/cdn/users/21124/2013/01/raw/76a17acb3967536fb4f87fb31c0be86b.jpg?width=725"},
             {name: "Eleanor Roosevelt", words: "kind compassionate spiritual resourceful persuasive knowledgeable courageous",
+             position: [41.7695366,-73.938733],
              photo: "http://www.firstladies.org/biographies/images/EleanorRoosevelt.jpg"}
         ].map(options => UserModel.create(options));
 
         this.subscribe(this.sessionId, 'ensureUserId', this.ensureUserId);
     }
-    ensureUserId(userId) {
+    ensureUserId({userId, position, accuracy}) {
         // Depending on when snapshot is taken, reload can give us a second ensureUserId message. Make sure it's in the model.
         console.log('ensureUserId', userId, 'among', this.users);
         var userModel = this.users.find(user => user.userId === userId);
-        if (userModel) return;
+        if (userModel) {
+            userModel.setPosition(position, accuracy);
+            return;
+        }
 
         userModel = UserModel.create({userId: userId});
+        userModel.setPosition(position, accuracy);
         this.users.push(userModel);
         this.publish(this.sessionId, 'announceNewUser', userId);
     } 
@@ -113,10 +126,11 @@ class UserModel extends WordCountModel { // Each user's data
         this.subscribe(this.userId, 'photo', this.setPhoto);
         this.subscribe(this.userId, 'threeWords', this.setThreeWords);
     }
-    initDeadPerson({name, words, photo}) { // Set up as an always "online" person to play with.
+    initDeadPerson({name, words, photo, position}) { // Set up as an always "online" person to play with.
         this.userId = name;
         this.setContact({name: name});
         this.setPhoto(photo);
+        this.setPosition(position);
         words.split(/\s+/).reverse().forEach((word, index) => this.incrementWordCount(word, index + 1));
     }
     initRandom({userId}) { // For demo purposes, start the suer with random data.
@@ -153,11 +167,15 @@ class UserModel extends WordCountModel { // Each user's data
         this.incrementWordCount(word, increment);
     }
     setPhoto(url) {
-        console.log('setPhoto', url, this);
+        console.log('setPhoto', url.slice(0, 10) + '...', this);
         this.photo = url;
         // FIXME set date
         // FIXME: decide where to check against changes. here or view?
         this.publish(this.userId, 'updateDisplay');
+    }
+    setPosition(position, accuracy) {
+        this.position = position;
+        this.accuracy = accuracy;
     }
     setContact({name}) {
         console.log('setContact', name, this);
@@ -192,7 +210,6 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.users = this.model.users.map(userModel => new UserView(userModel));
         this.subscribe(this.sessionId, "view-join", this.requestIdCheck);
         this.subscribe(this.sessionId, 'announceNewUser', this.announceNewUser);
-        this.displayNearby();
         
         this.introScreens = ['none', 'intro', 'info', 'infoSettings', 'contact', 'selfie', 'threeWords'];
         [goSettings].concat(Array.from(document.querySelectorAll(".next"))).forEach(button => button.onclick = () => this.nextIntroScreen());
@@ -210,7 +227,20 @@ class UserverseView extends Croquet.View { // Local version for display.
     requestIdCheck(viewId) {
         console.log('requestIdCheck', viewId, this.viewId, Q.APP_VERSION);
         if (viewId !== this.viewId) return; // Not for us to act on.
-        this.publish(this.sessionId, 'ensureUserId', this.ensureLocalId());
+        navigator.geolocation.getCurrentPosition(position => {
+            const coords = position.coords;
+            console.log('got position', position);
+            this.publish(this.sessionId, 'ensureUserId', {
+                userId: this.ensureLocalId(),
+                position: [coords.latitude, coords.longitude],
+                accuracy: coords.accuracy});
+        }, fail => {
+            console.log('position failed', fail);
+            this.publish(this.sessionId, 'ensureUserId', {userId: this.ensureLocalId()});
+        }, {
+            enableHighAccuracy: true
+        }
+                                                );
     }
     ensureMe() {
         if (this.me) return this.me;
@@ -224,10 +254,11 @@ class UserverseView extends Croquet.View { // Local version for display.
             let userModel = this.model.users[--index],
                 match = userModel.userId === userId;
             if (!match) continue;
-            console.log('announceNewUser', userId, 'photo:', userModel.photo);
+            console.log('announceNewUser', userId, 'photo:', (userModel.photo || '').slice(0, 10) + '...');
             this.me = new UserView(userModel);
             this.users.push(this.me)
             nearby.append(this.me.avatar);
+            this.displayNearby();
             if (!userModel.initial || !userModel.photo) this.nextIntroScreen();
             return;
         }
@@ -284,7 +315,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.nextIntroScreen(-1);
     }
     initConfirmSelfie(url) {
-        console.log('image data url', url);
+        console.log('image data url', url.slice(0, 10) + '...');
         selfieImg.setAttribute('src', url);
         selfie.classList.remove('lineup');
         takeSelfie.disabled = true;
@@ -342,6 +373,7 @@ class UserView extends Croquet.View {
         if (isSelected) this.initRater();
     }
     initRater() {
+        debug.innerHTML = `debug: ${this.model.position}, ${this.model.accuracy}`;
         this.renderCloud();
         this.initAutocomplete();
     }
@@ -361,8 +393,7 @@ class UserView extends Croquet.View {
         if (event) event.stopPropagation();
     }
     eachCloudSpan(f) {
-        const cloud = this.avatar.querySelector('.cloud'),
-              spans = cloud.querySelectorAll('span');
+        const spans = cloud.querySelectorAll('span');
         for (let span of spans) {
             const val = f(span);
             if (val) return val;
@@ -382,7 +413,6 @@ class UserView extends Croquet.View {
     }
     renderCloud(selectedWord = null) {
         const user = this;
-        const cloud = this.avatar.querySelector('.cloud');
         const list = user.cloudWordList();
         this.yourPick = null;
         cloud.innerHTML = ''; // Faster than removing each child, as it avoids multiple reflows.
