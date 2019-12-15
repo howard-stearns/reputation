@@ -41,7 +41,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.29"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.34"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -108,6 +108,7 @@ class UserverseModel extends WordCountModel {
         ].map(options => UserModel.create(options));
 
         this.subscribe(this.sessionId, 'addUserModel', this.addUserModel);
+        this.subscribe(this.sessionId, 'removeUser', this.removeUser);
     }
     findUser(userId) {
         return this.users.find(user => user.userId === userId);
@@ -116,6 +117,11 @@ class UserverseModel extends WordCountModel {
         console.log('addUserModel', userId, 'among', this.users);
         this.users.push(UserModel.create({userId: userId}));
         this.publish(this.sessionId, 'addUserView', userId);
+    }
+    removeUser(userId) {
+        console.log('removeUser', userId);
+        this.users = this.users.filter(user => user.userId !== userId);
+        this.publish(this.sessionId, 'displayNearby');
     }
 }
 
@@ -224,15 +230,17 @@ class UserverseView extends Croquet.View { // Local version for display.
 
         takeSelfie.onclick = () => this.takeSelfie();
         retakeSelfie.onclick = () => this.setupSelfie();
+        reset.onclick = () => this.reset();
         cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
     }
     findUser(userId) {
         return this.users.find(user => user.model.userId === userId);
     }
+    idKey() { return Q.APP_VERSION + ' UserId'; }
     ensureModel(viewId) {
         console.log('ensureModel', viewId, this.viewId, Q.APP_VERSION);
         if (viewId !== this.viewId) return; // Not for us to act on.
-        const idKey = document.title + 'UserId',
+        const idKey = this.idKey(),
               userId = localStorage.getItem(idKey) || (localStorage.setItem(idKey, this.model.users.length), localStorage.getItem(idKey)),
               // If the snasphot is current, the constructor would have created our view we were already in the model
               existingView = this.findUser(userId);
@@ -244,10 +252,26 @@ class UserverseView extends Croquet.View { // Local version for display.
     }
     addUserView(userId) {
         console.log('addUserView', userId);
-        const userModel = this.model.findUser(userId),
-              userView = new UserView(userModel);
+        const userModel = this.model.findUser(userId);
+        if (!userModel) return; // can happen in the presence of people resetting
+        const userView = new UserView(userModel);
         this.startup(userView);
         this.users.push(userView);
+    }
+    reset() {
+        const idKey = this.idKey(),
+              existing = localStorage.getItem(idKey);
+        Object.keys(localStorage).forEach(key => {
+            if (/^(know|rate)\s?me/.test(key.toLowerCase())) {
+                localStorage.removeItem(key);
+            }
+        });
+        localStorage.removeItem(this.idKey);
+        this.me = undefined;
+        if (existing) {
+            this.publish(this.sessionId, 'removeUser', existing);
+        }
+        setTimeout(() => location.reload(true), 250);
     }
     startup(me) {
         // It is possible to get startup twice, by this scenario and similar (slightly different orders):
@@ -276,7 +300,7 @@ class UserverseView extends Croquet.View { // Local version for display.
     computeNearby() {
         const me = this.me,
               myPosition = me.model.position,
-              users = this.users.filter(user => user.model.position);
+              users = this.users.filter(user => this.model.users.includes(user.model) && user.model.position);
         users.forEach(user => user.distance = Math.hypot(user.model.position[0] - myPosition[0],
                                                          user.model.position[1] - myPosition[1]));
         users.sort((a, b) => Math.sign(a.distance - b.distance));
