@@ -2,14 +2,6 @@
 /* 
 TODO:
 
-- Always show the nearest online: max of either 16 or within your accuracy (no slider)
-- online/offline w/position
-- filter picker display by n|distance
-
-- fix "accept" picture confusion
-
-- how do we set weightFactor? iterate?
-
 - endorse pick/display
 
 - add to homescreen prompt 
@@ -28,10 +20,13 @@ TODO:
 
 => Good enough to be criticized?
 
-- right now, we only get position and sort when you open app. When should we we update that?
-- should we show yourself with the nearby, or only in settings, or what?
-- share interaction preferences
+- geo:
+  . right now, we only get position and sort when you open app. When should we we update that?
+  . computeNearby should limit those within accuracy, if that's less than some limit, otherwise some limit N.
+  . should we show yourself with the nearby, or only in settings, or what?
+- dynamically adjust wordcloud weight
 - pending words: collect for voting; secret password to show upvoted words and approve them
+- share interaction preferences
 - rate this app
 - lockout time (against re-voting)
 - public figure of the day
@@ -230,7 +225,7 @@ class UserverseView extends Croquet.View { // Local version for display.
 
         takeSelfie.onclick = () => this.takeSelfie();
         retakeSelfie.onclick = () => this.setupSelfie();
-        acceptSelfie.onclick = () => this.acceptSelfie();
+        cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
     }
     findUser(userId) {
         return this.users.find(user => user.model.userId === userId);
@@ -280,7 +275,7 @@ class UserverseView extends Croquet.View { // Local version for display.
     computeNearby() {
         const me = this.me,
               myPosition = me.model.position,
-              users = this.users.concat(); // A copy
+              users = this.users.filter(user => user.model.position);
         users.forEach(user => user.distance = Math.hypot(user.model.position[0] - myPosition[0],
                                                          user.model.position[1] - myPosition[1]));
         users.sort((a, b) => Math.sign(a.distance - b.distance));
@@ -326,11 +321,14 @@ class UserverseView extends Croquet.View { // Local version for display.
             break;
         }
     }
-    acceptLooseVisibility(screen) {
+    acceptLoseVisibility(screen) {
         const me = this.me;
         switch (screen) {
         case 'contact':
             this.publish(me.model.userId, 'contact', {name: contactName.value});
+            break;
+        case 'selfie':
+            this.publish(this.me.model.userId, 'photo', selfieImg.getAttribute('src'));
             break;
         case 'threeWords':
             this.publish(me.model.userId, 'threeWords', [word1.value, word2.value, word3.value]);
@@ -343,7 +341,7 @@ class UserverseView extends Croquet.View { // Local version for display.
               nextIndex = (index + increment) % this.introScreens.length,
               next = this.introScreens[nextIndex];
         console.log('nextIntroScreen', current, index, nextIndex, next, this);
-        this.acceptLooseVisibility(current);
+        if (increment > 0) this.acceptLoseVisibility(current);
         setup.className = next;
         this.setupForVisible(next);
     }
@@ -354,12 +352,12 @@ class UserverseView extends Croquet.View { // Local version for display.
         selfieImg.setAttribute('src', url);
         selfie.classList.remove('lineup');
         takeSelfie.disabled = true;
-        retakeSelfie.disabled = acceptSelfie.disabled = false;
+        retakeSelfie.disabled = false;
     }
     setupSelfie() {
         selfie.classList.add('lineup');
         takeSelfie.disabled = false;
-        retakeSelfie.disabled = acceptSelfie.disabled = true;
+        retakeSelfie.disabled = true;
         navigator
             .mediaDevices
             .getUserMedia({ video: true })
@@ -375,9 +373,6 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.initConfirmSelfie(selfieCanvas.toDataURL('image/png'));
         selfieVideo.srcObject.getTracks().forEach(track => track.stop());
     }
-    acceptSelfie() {
-        this.publish(this.me.model.userId, 'photo', selfieImg.getAttribute('src'));
-    }        
 }
 
 class UserView extends Croquet.View {
@@ -389,6 +384,7 @@ class UserView extends Croquet.View {
         this.updateDisplay(avatar, model);
         avatar.onclick = () => this.toggleSelection();
         this.subscribe(model.userId, 'updateDisplay', this.updateDisplay);
+        this.subscribe(model.userId, 'renderedCloud', this.renderedCloud);
     }
     updateDisplay(avatar = this.avatar, model = this.model) {
         avatar.querySelector('span').textContent = this.model.initial;
@@ -447,36 +443,38 @@ class UserView extends Croquet.View {
     }
     cloudWordList() { // Wants [[word, count], ...]
         const list = Array.from(this.model.words.entries());
-        list.sort((a, b) => Math.sign(b[1] - a[1])); // Biggest counts first.        
+        list.sort((a, b) => Math.sign(b[1] - a[1])); // Biggest counts first.
+        console.log('cloudWordList', list, this);
         return list;
     }
-    renderCloud(selectedWord = null) {
-        const user = this;
-        const list = user.cloudWordList();
+    renderedCloud() {
+        // ...debug missing words. FIXME: should we re-render at lower weightFactor?
+        const spans = cloud.querySelectorAll('span');
+        const words = Array.from(spans).map(s => s.textContent);
+        this.list.forEach(pair => { if (!words.includes(pair[0])) console.log('MISSING', pair); })
+
+        // ... add click handlers, and pre-select if needed.
+        this.eachCloudSpan(span => {
+            span.onclick = event => this.updateForNewSpanChoice(span, 1, event);
+            if (this.yourPick === span.textContent) {
+                this.updateForNewSpanChoice(span, 0);
+            }                    
+        });
+    }
+    renderCloud() {
+        this.list = this.cloudWordList();
+        var weightFactor = 30; // FIXME: adapt this as needed
+        
         this.yourPick = null;
         cloud.innerHTML = ''; // Faster than removing each child, as it avoids multiple reflows.
+        cloud.dataset.userId = this.model.userId;
 
-        cloud.addEventListener('wordcloudstop', e => { // When rendering completes..
-
-            // ...debug missing words. FIXME: should we re-render at lower weightFactor?
-            const spans = cloud.querySelectorAll('span');
-            const words = Array.from(spans).map(s => s.textContent);
-            list.forEach(pair => { if (!words.includes(pair[0])) console.log('MISSING', pair); })
-
-            // ... add click handlers, and pre-select if needed.
-            user.eachCloudSpan(span => {
-                span.onclick = event => user.updateForNewSpanChoice(span, 1, event);
-                if (selectedWord === span.textContent) {
-                    user.updateForNewSpanChoice(span, 0);
-                }                    
-            });
-        });
         WordCloud(cloud, {
-            list: list,
+            list: this.list,
             shape: 'circle', // 'diamond' is more likely to not fit all the words
             backgroundColor: '#0',
             color: 'random-light',
-            weightFactor: 3
+            weightFactor: weightFactor
             //minSize: 10 // The weight of the word in the list must be ABOVE this value to be shown
         });
     }
@@ -503,7 +501,8 @@ class UserView extends Croquet.View {
                 }
                 if (!user.eachCloudSpan(clickSpanIfFound)) {
                     this.publish(this.model.userId, 'rate', {word: word});
-                    user.renderCloud(word); // FIXME- after round trip
+                    this.yourPick = word;
+                    user.renderCloud(); // FIXME- after round trip
                 }
             }
         });
