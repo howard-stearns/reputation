@@ -41,7 +41,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.28"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.29"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -244,15 +244,17 @@ class UserverseView extends Croquet.View { // Local version for display.
     }
     addUserView(userId) {
         console.log('addUserView', userId);
-        const userModel = this.model.findUser(userId);
-        this.users.push(this.startup(new UserView(userModel)));
+        const userModel = this.model.findUser(userId),
+              userView = new UserView(userModel);
+        this.startup(userView);
+        this.users.push(userView);
     }
     startup(me) {
         // It is possible to get startup twice, by this scenario and similar (slightly different orders):
         // Previous session published addUserModel, but not snapshot created.
         // So this session starts with that method, resulting in addUserView => startup.
         // Then this session also gets an ensureModel as always, finding an existingView and ends up here.
-        if (this.me) return;
+        if (this.me) return this.me;
         this.me = me;
         console.log('startup', me);
         navigator.geolocation.getCurrentPosition(position => {
