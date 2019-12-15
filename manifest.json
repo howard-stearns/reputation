@@ -1,0 +1,18 @@
+{
+    "short_name": "KnowMe",
+    "name": "High Fidelity's Know Me",
+    "icons": [
+        {
+            "src": "hifi-logo-192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "hifi-logo-512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": "/index.html",
+    "display": "standalone"
+}

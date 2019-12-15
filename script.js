@@ -41,7 +41,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.34"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.35"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -537,3 +537,24 @@ class UserView extends Croquet.View {
 
 [WordCountModel, UserverseModel, UserModel].forEach(model => model.register());
 Croquet.startSession(document.title, UserverseModel, UserverseView);
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    console.log('beforeinstallprompt', e);
+    deferredPrompt = e;
+    window.alert('This page can be installed on the home screen. More to come...' + JSON.stringify(e));
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice
+        .then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                window.alert('User accepted the A2HS prompt');
+            } else {
+                window.alert('User dismissed the A2HS prompt');
+            }
+            deferredPrompt = null;
+        });
+});
+
+window.addEventListener('appinstalled', (evt) => {
+  window.alert('a2hs installed');
+});
