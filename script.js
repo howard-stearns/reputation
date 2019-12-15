@@ -23,11 +23,12 @@ TODO:
 - date of picture change
 - lower res pictures, and jpeg?
 - better picture of eleanor
-
+- message for word that does not complete
 - setup cleanup
 
 => Good enough to be criticized?
 
+- right now, we only get position and sort when you open app. When should we we update that?
 - should we show yourself with the nearby, or only in settings, or what?
 - share interaction preferences
 - pending words: collect for voting; secret password to show upvoted words and approve them
@@ -46,7 +47,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.21"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.27"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -56,6 +57,25 @@ empathetic sympathetic talented adaptable reliable diligent fair
 impartial skilled exciting resourceful knowledgeable ambitious
 passionate exuberant frank generous persuasive approachable friendly
 gregarious wise`;
+
+
+/*  Startup flow:
+ensureUserModel: If our model is not in replicated UserverseModel, create replicated UserModel.
+  UserModel needs a userId, which is only known locally, so this has to be checked in the view.
+  If we do create a model, everyone needs to addUserView.
+When a view is created (when starting our UserverseView, or in addUserView), if it is ours:
+  If we are not setup, do so. 
+    Model might have existed (to receive contact), but not been set up at that time.
+    displayNearby when done
+  If we don't have a current position, update model with position.
+    Might be in parallel with setup.
+updateDisplay happens for everyone as soon as they hear about it.
+  That avatar might or might not be showing at the time, but update it regardless.
+On updating model position (of anyone), displayNearby for UserverseView.
+On return from interacting with someone, displayNearby.
+displayNearby exits unless on main screen with our own initial, picture, and current position
+
+ */
 
 class WordCountModel extends Croquet.Model { // Maintains a map of word => count, used for Userverse overall, and each User.
     init(options) {
@@ -93,22 +113,16 @@ class UserverseModel extends WordCountModel {
              photo: "http://www.firstladies.org/biographies/images/EleanorRoosevelt.jpg"}
         ].map(options => UserModel.create(options));
 
-        this.subscribe(this.sessionId, 'ensureUserId', this.ensureUserId);
+        this.subscribe(this.sessionId, 'addUserModel', this.addUserModel);
     }
-    ensureUserId({userId, position, accuracy}) {
-        // Depending on when snapshot is taken, reload can give us a second ensureUserId message. Make sure it's in the model.
-        console.log('ensureUserId', userId, 'among', this.users);
-        var userModel = this.users.find(user => user.userId === userId);
-        if (userModel) {
-            userModel.setPosition(position, accuracy);
-            return;
-        }
-
-        userModel = UserModel.create({userId: userId});
-        userModel.setPosition(position, accuracy);
-        this.users.push(userModel);
-        this.publish(this.sessionId, 'announceNewUser', userId);
-    } 
+    findUser(userId) {
+        return this.users.find(user => user.userId === userId);
+    }
+    addUserModel(userId) {
+        console.log('addUserModel', userId, 'among', this.users);
+        this.users.push(UserModel.create({userId: userId}));
+        this.publish(this.sessionId, 'addUserView', userId);
+    }
 }
 
 class UserModel extends WordCountModel { // Each user's data
@@ -125,12 +139,13 @@ class UserModel extends WordCountModel { // Each user's data
         this.subscribe(this.userId, 'contact', this.setContact);
         this.subscribe(this.userId, 'photo', this.setPhoto);
         this.subscribe(this.userId, 'threeWords', this.setThreeWords);
+        this.subscribe(this.userId, 'setPosition', this.setPosition);
     }
     initDeadPerson({name, words, photo, position}) { // Set up as an always "online" person to play with.
         this.userId = name;
         this.setContact({name: name});
         this.setPhoto(photo);
-        this.setPosition(position);
+        this.setPosition({position: position});
         words.split(/\s+/).reverse().forEach((word, index) => this.incrementWordCount(word, index + 1));
     }
     initRandom({userId}) { // For demo purposes, start the suer with random data.
@@ -167,25 +182,24 @@ class UserModel extends WordCountModel { // Each user's data
         this.incrementWordCount(word, increment);
     }
     setPhoto(url) {
-        console.log('setPhoto', url.slice(0, 10) + '...', this);
         this.photo = url;
         // FIXME set date
         // FIXME: decide where to check against changes. here or view?
         this.publish(this.userId, 'updateDisplay');
     }
-    setPosition(position, accuracy) {
+    setPosition({position, accuracy}) {
+        console.log('setPosition', position, accuracy, 'for', this.userId);
         this.position = position;
         this.accuracy = accuracy;
+        if (accuracy) this.publish(this.sessionId, 'displayNearby');
     }
     setContact({name}) {
-        console.log('setContact', name, this);
         this.contactName = name;
         this.initial = name[0];
         // FIXME more
         this.publish(this.userId, 'updateDisplay');
     }
     setThreeWords([word1, word2, word3]) {
-        console.log('setThreeWords', word1, word2, word3);
         this.maybeUpdateWord(word1, 'word1', 2);
         this.maybeUpdateWord(word2, 'word2', 1);
         this.maybeUpdateWord(word3, 'word3', 1);
@@ -193,7 +207,6 @@ class UserModel extends WordCountModel { // Each user's data
     }
     maybeUpdateWord(newWord, key, weight = 1) {
         const oldWord = this[key];
-        console.log('maybeUpdateWord', newWord, key, oldWord, weight);
         if (newWord === oldWord) return false;
         if (oldWord) this.incrementWordCount(oldWord, 0 - weight);
         if (newWord) this.incrementWordCount(newWord, weight);
@@ -202,14 +215,14 @@ class UserModel extends WordCountModel { // Each user's data
     }
 }
 
-
 class UserverseView extends Croquet.View { // Local version for display.
     constructor(model) {
         super(model);
         this.model = model;
         this.users = this.model.users.map(userModel => new UserView(userModel));
-        this.subscribe(this.sessionId, "view-join", this.requestIdCheck);
-        this.subscribe(this.sessionId, 'announceNewUser', this.announceNewUser);
+        this.subscribe(this.sessionId, "view-join", this.ensureModel);
+        this.subscribe(this.sessionId, 'addUserView', this.addUserView);
+        this.subscribe(this.sessionId, 'displayNearby', this.displayNearby);
         
         this.introScreens = ['none', 'intro', 'info', 'infoSettings', 'contact', 'selfie', 'threeWords'];
         [goSettings].concat(Array.from(document.querySelectorAll(".next"))).forEach(button => button.onclick = () => this.nextIntroScreen());
@@ -219,60 +232,83 @@ class UserverseView extends Croquet.View { // Local version for display.
         retakeSelfie.onclick = () => this.setupSelfie();
         acceptSelfie.onclick = () => this.acceptSelfie();
     }
-    ensureLocalId() { // What is my locally stored anonymous id?
-        const idKey = document.title + 'UserId';
-        // Note: Even when bootstrapping, there is a zero user with no local storage.
-        return localStorage.getItem(idKey) || (localStorage.setItem(idKey, this.model.users.length), localStorage.getItem(idKey));
+    findUser(userId) {
+        return this.users.find(user => user.model.userId === userId);
     }
-    requestIdCheck(viewId) {
-        console.log('requestIdCheck', viewId, this.viewId, Q.APP_VERSION);
+    ensureModel(viewId) {
+        console.log('ensureModel', viewId, this.viewId, Q.APP_VERSION);
         if (viewId !== this.viewId) return; // Not for us to act on.
+        const idKey = document.title + 'UserId',
+              userId = localStorage.getItem(idKey) || (localStorage.setItem(idKey, this.model.users.length), localStorage.getItem(idKey)),
+              // If the snasphot is current, the constructor would have created our view we were already in the model
+              existingView = this.findUser(userId);
+        console.log('ensureModel', userId, 'existingView:', existingView);
+        if (existingView) {
+            return this.startup(existingView);
+        }
+        this.publish(this.sessionId, 'addUserModel', userId);
+    }
+    addUserView(userId) {
+        console.log('addUserView', userId);
+        const userModel = this.model.findUser(userId);
+        this.users.push(this.startup(new UserView(userModel)));
+    }
+    startup(me) {
+        // It is possible to get startup twice, by this scenario and similar (slightly different orders):
+        // Previous session published addUserModel, but not snapshot created.
+        // So this session starts with that method, resulting in addUserView => startup.
+        // Then this session also gets an ensureModel as always, finding an existingView and ends up here.
+        if (this.me) return;
+        this.me = me;
+        console.log('startup', me);
         navigator.geolocation.getCurrentPosition(position => {
             const coords = position.coords;
-            console.log('got position', position);
-            this.publish(this.sessionId, 'ensureUserId', {
-                userId: this.ensureLocalId(),
+            console.log('got position', position, 'for', me.model.userId);
+            this.publish(me.model.userId, 'setPosition', {
                 position: [coords.latitude, coords.longitude],
                 accuracy: coords.accuracy});
         }, fail => {
             console.log('position failed', fail);
-            this.publish(this.sessionId, 'ensureUserId', {userId: this.ensureLocalId()});
         }, {
             enableHighAccuracy: true
-        }
-                                                );
-    }
-    ensureMe() {
-        if (this.me) return this.me;
-        const userId = this.ensureLocalId();
-        this.me = this.users.find(user => user.model.userId === userId);
-        if (this.me) return this.me;
-        throw new Error(`No user view found for ${userId}.`);
-    }
-    announceNewUser(userId) {
-        for (let index = this.model.users.length; index > 0;) {
-            let userModel = this.model.users[--index],
-                match = userModel.userId === userId;
-            if (!match) continue;
-            console.log('announceNewUser', userId, 'photo:', (userModel.photo || '').slice(0, 10) + '...');
-            this.me = new UserView(userModel);
-            this.users.push(this.me)
-            nearby.append(this.me.avatar);
-            this.displayNearby();
-            if (!userModel.initial || !userModel.photo) this.nextIntroScreen();
-            return;
-        }
+        });
+        if (!me.model.initial || !me.model.photo) {
+            this.nextIntroScreen();
+        } 
+        return me;
     }
     computeNearby() {
-        return this.users; // FIXME: filter by online, sort by distance, filter by max/accuracy
+        const me = this.me,
+              myPosition = me.model.position,
+              users = this.users.concat(); // A copy
+        users.forEach(user => user.distance = Math.hypot(user.model.position[0] - myPosition[0],
+                                                         user.model.position[1] - myPosition[1]));
+        users.sort((a, b) => Math.sign(a.distance - b.distance));
+        return users;
+    }
+    hasRecentPosition(model = this.me && this.me.model) {
+        return model && model.position; // FIXME
     }
     displayNearby() {
+        const model = this.me && this.me.model;
+        if (!model || !model.initial || !model.photo || !this.hasRecentPosition(model)
+            || !setup.classList.contains('none')
+            || nearby.classList.contains('hasSelection')) return console.log('displayNearby notReady.', this.me);
+        const old = nearby.children,
+              next = this.computeNearby().map(user => user.avatar);
+        console.log('displayNearby old:', old, 'next:', next);
+        if ((old.length === next.length) && next.every((e, i) => e === old[i])) return console.log('displayNearby unchanged');;
+        console.log('displayNearby appending', next);
+        // FIXME: IWBNI the changes animated somehow
         nearby.innerHTML = '';
-        this.computeNearby().forEach(user => nearby.append(user.avatar));
+        next.forEach(avatar => nearby.append(avatar));
     }
     setupForVisible(screen) {
-        const me = this.ensureMe();
+        const me = this.me;
         switch (screen) {
+        case 'none':
+            this.displayNearby();
+            break;
         case 'contact':
             contactName.value = me.model.contactName || '';
             break;
@@ -291,7 +327,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         }
     }
     acceptLooseVisibility(screen) {
-        const me = this.ensureMe();
+        const me = this.me;
         switch (screen) {
         case 'contact':
             this.publish(me.model.userId, 'contact', {name: contactName.value});
@@ -308,14 +344,13 @@ class UserverseView extends Croquet.View { // Local version for display.
               next = this.introScreens[nextIndex];
         console.log('nextIntroScreen', current, index, nextIndex, next, this);
         this.acceptLooseVisibility(current);
-        this.setupForVisible(next);
         setup.className = next;
+        this.setupForVisible(next);
     }
     previousIntroScreen() {
         this.nextIntroScreen(-1);
     }
     initConfirmSelfie(url) {
-        console.log('image data url', url.slice(0, 10) + '...');
         selfieImg.setAttribute('src', url);
         selfie.classList.remove('lineup');
         takeSelfie.disabled = true;
@@ -370,7 +405,11 @@ class UserView extends Croquet.View {
         parent.classList.toggle('hasSelected');
         const isSelected = target.classList.contains('selected');
         target.style.left = isSelected ? `-${column * width}px` : "0";
-        if (isSelected) this.initRater();
+        if (isSelected) {
+            this.initRater();
+        } else {
+            this.publish(this.sessionId, 'displayNearby');
+        }
     }
     initRater() {
         debug.innerHTML = `debug: ${this.model.position}, ${this.model.accuracy}`;
