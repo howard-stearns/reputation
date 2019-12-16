@@ -39,7 +39,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.36"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.37"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -259,12 +259,13 @@ class UserverseView extends Croquet.View { // Local version for display.
     reset() {
         const idKey = this.idKey(),
               existing = localStorage.getItem(idKey);
+        /*
         Object.keys(localStorage).forEach(key => {
             if (/^(know|rate)\s?me/.test(key.toLowerCase())) {
                 localStorage.removeItem(key);
             }
-        });
-        localStorage.removeItem(this.idKey);
+        });*/
+        localStorage.clear()
         this.me = undefined;
         if (existing) {
             this.publish(this.sessionId, 'removeUser', existing);
