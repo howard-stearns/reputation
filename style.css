@@ -56,9 +56,16 @@ input { font-size: 32px; }
     position: absolute;
     right: 0
 }
+#showQR {
+    border: none;
+    padding: 0;
+}
+#showQR > img {
+    width: 48px;
+}
 button > i.material-icons {
     font-size: 48px;
-}    
+}
 .avatar > span {
     line-height: 0.70;
     position: absolute;
@@ -103,6 +110,8 @@ button > i.material-icons {
 }
 #setup img { max-width: 400px; }
 
+#showQR.showing > img,
+#showQR:not(.showing) > div,
 #selfie.lineup #selfieImg,
 #selfie:not(.lineup) #selfieVideo,
 .avatar:not(.selected) .info,

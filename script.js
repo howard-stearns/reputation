@@ -7,7 +7,6 @@ TODO:
    https://github.com/cubiq/add-to-homescreen,
    https://stackoverflow.com/questions/50332119/is-it-possible-to-make-an-in-app-button-that-triggers-the-pwa-add-to-home-scree/50356149#50356149)
 
-- QR code
 - share contact info
 
 - endorse pick/display
@@ -39,7 +38,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.40"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.41"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -234,11 +233,14 @@ class UserverseView extends Croquet.View { // Local version for display.
         retakeSelfie.onclick = () => this.setupSelfie();
         reset.onclick = () => this.reset();
         cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
+        showQR.onclick = () => this.showQR();
     }
     logMessage(message) {
+        console.log(message);
+        /*
         const item = document.createElement('DIV');
         item.innerHTML = message;
-        pseudoConsole.append(item);
+        pseudoConsole.append(item);*/
     }
     log(...args) {
         this.logMessage(args.join(' '));
@@ -383,7 +385,7 @@ class UserverseView extends Croquet.View { // Local version for display.
     }
     previousIntroScreen() {
         this.nextIntroScreen(-1);
-    }
+    }    
     initConfirmSelfie(url) {
         selfieImg.setAttribute('src', url);
         selfie.classList.remove('lineup');
@@ -416,6 +418,15 @@ class UserverseView extends Croquet.View { // Local version for display.
         halfCanvas.height = canvas.height / 2;
         halfCanvas.getContext('2d').drawImage(canvas, 0, 0, halfCanvas.width, halfCanvas.height);
         return halfCanvas;
+    }
+    showQR() {
+        showQR.classList.toggle('showing');
+        if (!showQR.classList.contains('showing')) return;
+        var generator = qrcode(0, 'H');
+        console.log('qr', generator);
+        generator.addData('https://howard-stearns.github.io/reputation/');
+        generator.make();
+        qr.innerHTML = generator.createImgTag(15);
     }
 }
 
