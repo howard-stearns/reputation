@@ -38,7 +38,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.43"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.44"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -243,11 +243,17 @@ class UserverseView extends Croquet.View { // Local version for display.
         return this.users.find(user => user.model.userId === userId);
     }
     idKey() { return Q.APP_VERSION + ' UserId'; }
+    uuidv4() { // Not crypto strong, but good enough for prototype.
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            var r = this.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
     ensureModel(viewId) {
         this.log('ensureModel', viewId, this.viewId, Q.APP_VERSION);
         if (viewId !== this.viewId) return; // Not for us to act on.
         const idKey = this.idKey(),
-              userId = localStorage.getItem(idKey) || (localStorage.setItem(idKey, this.model.users.length), localStorage.getItem(idKey)),
+              userId = localStorage.getItem(idKey) || (localStorage.setItem(idKey, this.uuidv4()), localStorage.getItem(idKey)),
               // If the snasphot is current, the constructor would have created our view we were already in the model
               existingView = this.findUser(userId);
         this.log('ensureModel', userId, 'existingView:', existingView);
