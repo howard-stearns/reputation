@@ -38,7 +38,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.41"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.43"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -108,7 +108,6 @@ class UserverseModel extends WordCountModel {
         ].map(options => UserModel.create(options));
 
         this.subscribe(this.sessionId, 'addUserModel', this.addUserModel);
-        this.subscribe(this.sessionId, 'removeUser', this.removeUser);
     }
     findUser(userId) {
         return this.users.find(user => user.userId === userId);
@@ -117,11 +116,6 @@ class UserverseModel extends WordCountModel {
         this.log('addUserModel', userId, 'among', this.users);
         this.users.push(UserModel.create({userId: userId}));
         this.publish(this.sessionId, 'addUserView', userId);
-    }
-    removeUser(userId) {
-        this.log('removeUser', userId);
-        this.users = this.users.filter(user => user.userId !== userId);
-        this.publish(this.sessionId, 'displayNearby');
     }
 }
 
@@ -280,10 +274,10 @@ class UserverseView extends Croquet.View { // Local version for display.
             }
         });*/
         localStorage.clear()
-        this.me = undefined;
         if (existing) {
-            this.publish(this.sessionId, 'removeUser', existing);
+            this.publish(this.me.model.userId, 'setPosition', {});
         }
+        this.me = undefined;
         setTimeout(() => location.reload(true), 250);
     }
     startup(me) {
