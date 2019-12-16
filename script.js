@@ -12,8 +12,6 @@ TODO:
 
 - endorse pick/display
 - date of picture change
-- lower res pictures, and jpeg?
-- better picture of eleanor
 - message for word that does not complete
 - setup cleanup
 
@@ -95,16 +93,16 @@ class UserverseModel extends WordCountModel {
         this.users = [ // Set up some universally available dead people, so that there's always someone to work with.
             {name: "Alan Turing", words: "curious logical resourceful knowledgeable persistent kind practical rational",
              position: [51.9977, 0.7407],
-             photo: "https://www.biography.com/.image/ar_1:1%2Cc_fill%2Ccs_srgb%2Cg_face%2Cq_auto:good%2Cw_300/MTE5NDg0MDU1MTUzMTE2Njg3/alan-turing-9512017-1-402.jpg"},
+             photo: "alan-turing.jpg"},
             {name: "Oscar Wilde", words: "historian witty gregarious naturalist charming talented exuberant ernest adventurous",
              position: [48.860000, 2.396000],
-             photo: "https://www.onthisday.com/images/people/oscar-wilde-medium.jpg"},
+             photo: "oscar-wilde.jpg"},
             {name: "Cleopatra", words: "persuasive ambitious patriotic resourceful adaptable knowledgeable passionate exciting courageous adventurous persistent witty skilled",
              position: [31.200000, 29.916667],
-             photo: "https://patch.com/img/cdn/users/21124/2013/01/raw/76a17acb3967536fb4f87fb31c0be86b.jpg?width=725"},
+             photo: "cleopatra.jpg"},
             {name: "Eleanor Roosevelt", words: "kind compassionate spiritual resourceful persuasive knowledgeable courageous",
              position: [41.7695366,-73.938733],
-             photo: "http://www.firstladies.org/biographies/images/EleanorRoosevelt.jpg"}
+             photo: "eleanor-roosevelt.jpg"}
         ].map(options => UserModel.create(options));
 
         this.subscribe(this.sessionId, 'addUserModel', this.addUserModel);
@@ -389,14 +387,22 @@ class UserverseView extends Croquet.View { // Local version for display.
             .then(stream => selfieVideo.srcObject = stream);
     }
     takeSelfie() {
-        const width = selfieVideo.videoWidth,
-              height = selfieVideo.videoHeight,
-              context = selfieCanvas.getContext('2d');
-        selfieCanvas.width = width;
-        selfieCanvas.height = height;
-        context.drawImage(selfieVideo, 0, 0, width, height);
-        this.initConfirmSelfie(selfieCanvas.toDataURL('image/png'));
+        var canvas = selfieCanvas;
+        canvas.width = selfieVideo.videoWidth;
+        canvas.height = selfieVideo.videoHeight;
+        canvas.getContext('2d').drawImage(selfieVideo, 0, 0, canvas.width, canvas.height);
+        while (canvas.width >= (2 * 400)) { // Protect agains big cameras
+            canvas = this.getHalfScaleCanvas(canvas);
+        }
+        this.initConfirmSelfie(canvas.toDataURL('image/png'));
         selfieVideo.srcObject.getTracks().forEach(track => track.stop());
+    }
+    getHalfScaleCanvas(canvas) { // Non-power of two scaling is slow, but this is speedy.
+        var halfCanvas = document.createElement('canvas');
+        halfCanvas.width = canvas.width / 2;
+        halfCanvas.height = canvas.height / 2;
+        halfCanvas.getContext('2d').drawImage(canvas, 0, 0, halfCanvas.width, halfCanvas.height);
+        return halfCanvas;
     }
 }
 

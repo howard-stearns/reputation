@@ -56,7 +56,7 @@ input { font-size: 32px; }
     position: absolute;
     right: 0
 }
-.settingsButton > i {
+button > i.material-icons {
     font-size: 48px;
 }    
 .avatar > span {
@@ -101,6 +101,7 @@ input { font-size: 32px; }
     display: block;
     object-fit: cover;
 }
+#setup img { max-width: 400px; }
 
 #selfie.lineup #selfieImg,
 #selfie:not(.lineup) #selfieVideo,
