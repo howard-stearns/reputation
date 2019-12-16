@@ -39,7 +39,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.38"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.39"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -78,12 +78,15 @@ class WordCountModel extends Croquet.Model { // Maintains a map of word => count
         const was = this.words.get(word) || 0;
         this.words.set(word, was + increment);
     }
+    log(...args) {
+        this.publish(this.sessionId, 'log', args.join(' '));
+    }
 }
-    
+
 // Database of the users, and the data that is common to all users (available words). Could have multiples if we want to support factions.
 class UserverseModel extends WordCountModel { 
     init(options) { // Initial data for this userverse.
-        console.log('init UserverseModel', options, this);
+        this.log('init UserverseModel', options, this);
         super.init(options);
 
         // The list of blessed/localizeable words, with a word count so that they be ordered for autocomplete.
@@ -112,12 +115,12 @@ class UserverseModel extends WordCountModel {
         return this.users.find(user => user.userId === userId);
     }
     addUserModel(userId) {
-        console.log('addUserModel', userId, 'among', this.users);
+        this.log('addUserModel', userId, 'among', this.users);
         this.users.push(UserModel.create({userId: userId}));
         this.publish(this.sessionId, 'addUserView', userId);
     }
     removeUser(userId) {
-        console.log('removeUser', userId);
+        this.log('removeUser', userId);
         this.users = this.users.filter(user => user.userId !== userId);
         this.publish(this.sessionId, 'displayNearby');
     }
@@ -125,7 +128,7 @@ class UserverseModel extends WordCountModel {
 
 class UserModel extends WordCountModel { // Each user's data
     init(options) { // Initial random demo data.
-        console.log('init UserModel', options, this);
+        this.log('init UserModel', options, this);
         super.init(options);
         if (options.name) {
             this.initDeadPerson(options);  // Name at init time only happens with the sample users.
@@ -186,7 +189,7 @@ class UserModel extends WordCountModel { // Each user's data
         this.publish(this.userId, 'updateDisplay');
     }
     setPosition({position, accuracy}) {
-        console.log('setPosition', position, accuracy, 'for', this.userId);
+        this.log('setPosition', position, accuracy, 'for', this.userId);
         this.position = position;
         this.accuracy = accuracy;
         if (accuracy) this.publish(this.sessionId, 'displayNearby');
@@ -221,6 +224,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.subscribe(this.sessionId, "view-join", this.ensureModel);
         this.subscribe(this.sessionId, 'addUserView', this.addUserView);
         this.subscribe(this.sessionId, 'displayNearby', this.displayNearby);
+        this.subscribe(this.sessionId, 'log', this.logMessage);
         
         this.introScreens = ['none', 'intro', 'info', 'infoSettings', 'contact', 'selfie', 'threeWords'];
         [goSettings].concat(Array.from(document.querySelectorAll(".next"))).forEach(button => button.onclick = () => this.nextIntroScreen());
@@ -231,25 +235,33 @@ class UserverseView extends Croquet.View { // Local version for display.
         reset.onclick = () => this.reset();
         cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
     }
+    logMessage(message) {
+        const item = document.createElement('DIV');
+        item.innerHTML = message;
+        pseudoConsole.append(item);
+    }
+    log(...args) {
+        this.logMessage(args.join(' '));
+    }
     findUser(userId) {
         return this.users.find(user => user.model.userId === userId);
     }
     idKey() { return Q.APP_VERSION + ' UserId'; }
     ensureModel(viewId) {
-        console.log('ensureModel', viewId, this.viewId, Q.APP_VERSION);
+        this.log('ensureModel', viewId, this.viewId, Q.APP_VERSION);
         if (viewId !== this.viewId) return; // Not for us to act on.
         const idKey = this.idKey(),
               userId = localStorage.getItem(idKey) || (localStorage.setItem(idKey, this.model.users.length), localStorage.getItem(idKey)),
               // If the snasphot is current, the constructor would have created our view we were already in the model
               existingView = this.findUser(userId);
-        console.log('ensureModel', userId, 'existingView:', existingView);
+        this.log('ensureModel', userId, 'existingView:', existingView);
         if (existingView) {
             return this.startup(existingView);
         }
         this.publish(this.sessionId, 'addUserModel', userId);
     }
     addUserView(userId) {
-        console.log('addUserView', userId);
+        this.log('addUserView', userId);
         const userModel = this.model.findUser(userId);
         if (!userModel) return; // can happen in the presence of people resetting
         const userView = new UserView(userModel);
@@ -279,15 +291,15 @@ class UserverseView extends Croquet.View { // Local version for display.
         // Then this session also gets an ensureModel as always, finding an existingView and ends up here.
         if (this.me) return this.me;
         this.me = me;
-        console.log('startup', me);
+        this.log('startup', me);
         navigator.geolocation.getCurrentPosition(position => {
             const coords = position.coords;
-            console.log('got position', position, 'for', me.model.userId);
+            this.log('got position', position, 'for', me.model.userId);
             this.publish(me.model.userId, 'setPosition', {
                 position: [coords.latitude, coords.longitude],
                 accuracy: coords.accuracy});
         }, fail => {
-            console.log('position failed', fail);
+            this.log('position failed', fail);
         }, {
             enableHighAccuracy: true
         });
@@ -312,12 +324,12 @@ class UserverseView extends Croquet.View { // Local version for display.
         const model = this.me && this.me.model;
         if (!model || !model.initial || !model.photo || !this.hasRecentPosition(model)
             || !setup.classList.contains('none')
-            || nearby.classList.contains('hasSelection')) return console.log('displayNearby notReady.', this.me);
+            || nearby.classList.contains('hasSelection')) return this.log('displayNearby notReady.', this.me);
         const old = nearby.children,
               next = this.computeNearby().map(user => user.avatar);
-        console.log('displayNearby old:', old, 'next:', next);
-        if ((old.length === next.length) && next.every((e, i) => e === old[i])) return console.log('displayNearby unchanged');;
-        console.log('displayNearby appending', next);
+        this.log('displayNearby old:', old, 'next:', next);
+        if ((old.length === next.length) && next.every((e, i) => e === old[i])) return this.log('displayNearby unchanged');;
+        this.log('displayNearby appending', next);
         // FIXME: IWBNI the changes animated somehow
         nearby.innerHTML = '';
         next.forEach(avatar => nearby.append(avatar));
@@ -364,7 +376,7 @@ class UserverseView extends Croquet.View { // Local version for display.
               index = this.introScreens.indexOf(current),
               nextIndex = (index + increment) % this.introScreens.length,
               next = this.introScreens[nextIndex];
-        console.log('nextIntroScreen', current, index, nextIndex, next, this);
+        this.log('nextIntroScreen', current, index, nextIndex, next, this);
         if (increment > 0) this.acceptLoseVisibility(current);
         setup.className = next;
         this.setupForVisible(next);
@@ -417,6 +429,9 @@ class UserView extends Croquet.View {
         avatar.onclick = () => this.toggleSelection();
         this.subscribe(model.userId, 'updateDisplay', this.updateDisplay);
         this.subscribe(model.userId, 'renderedCloud', this.renderedCloud);
+    }
+    log(...args) {
+        this.publish(this.sessionId, 'log', args.join(' '));
     }
     updateDisplay(avatar = this.avatar, model = this.model) {
         avatar.querySelector('span').textContent = this.model.initial;
@@ -476,14 +491,14 @@ class UserView extends Croquet.View {
     cloudWordList() { // Wants [[word, count], ...]
         const list = Array.from(this.model.words.entries());
         list.sort((a, b) => Math.sign(b[1] - a[1])); // Biggest counts first.
-        console.log('cloudWordList', list, this);
+        this.log('cloudWordList', list, this);
         return list;
     }
     renderedCloud() {
         // ...debug missing words. FIXME: should we re-render at lower weightFactor?
         const spans = cloud.querySelectorAll('span');
         const words = Array.from(spans).map(s => s.textContent);
-        this.list.forEach(pair => { if (!words.includes(pair[0])) console.log('MISSING', pair); })
+        this.list.forEach(pair => { if (!words.includes(pair[0])) this.log('MISSING', pair); })
 
         // ... add click handlers, and pre-select if needed.
         this.eachCloudSpan(span => {
