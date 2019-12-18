@@ -2,6 +2,16 @@
 /* 
 TODO:
 
+- bug with multiple users
+- bug with button size
+- bug with autocomplete size
+
+- geo:
+  . should not show you if "offline", but should allow service worker. (how does user control that?) Does that first require app to be on home page?
+  . right now, we only get position and sort when you open app. When should we we update that?
+  . computeNearby should limit those within accuracy, if that's less than some limit, otherwise some limit N.
+  . should we show yourself with the nearby, or only in settings, or what?
+
 - add to homescreen prompt 
   (https://stackoverflow.com/questions/47559051/ios-devices-add-website-to-homescreen-as-web-app-not-shortcut
    https://github.com/cubiq/add-to-homescreen,
@@ -9,17 +19,14 @@ TODO:
 
 - share contact info
 
-- endorse pick/display
+- status
 - date of picture change
+- transfer to another device (most alive one wins)
+
+- how much can be input by audio?
+- how much can be conveyed by audio so that you're not staring at your phone?
 - message for word that does not complete
 - setup cleanup
-
-=> Good enough to be criticized?
-
-- geo:
-  . right now, we only get position and sort when you open app. When should we we update that?
-  . computeNearby should limit those within accuracy, if that's less than some limit, otherwise some limit N.
-  . should we show yourself with the nearby, or only in settings, or what?
 - dynamically adjust wordcloud weight
 - pending words: collect for voting; secret password to show upvoted words and approve them
 - share interaction preferences
@@ -38,7 +45,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.44"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.48"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -88,11 +95,10 @@ class UserverseModel extends WordCountModel {
         this.log('init UserverseModel', options, this);
         super.init(options);
 
-        // The list of blessed/localizeable words, with a word count so that they be ordered for autocomplete.
+        // The Map of blessed/localizeable words to use count so that each can be ordered for autocomplete.
         this.words = new Map(Q.INITIAL_WORD_LIST.split(/\s+/).map(word => [word, 0]));
 
-        // The list of all users.
-        this.users = [ // Set up some universally available dead people, so that there's always someone to work with.
+        this.users = new Map([ // Set up some universally available dead people, so that there's always someone to work with.
             {name: "Alan Turing", words: "curious logical resourceful knowledgeable persistent kind practical rational",
              position: [51.9977, 0.7407],
              photo: "alan-turing.jpg"},
@@ -105,16 +111,18 @@ class UserverseModel extends WordCountModel {
             {name: "Eleanor Roosevelt", words: "kind compassionate spiritual resourceful persuasive knowledgeable courageous",
              position: [41.7695366,-73.938733],
              photo: "eleanor-roosevelt.jpg"}
-        ].map(options => UserModel.create(options));
-
+        ].map(options => {
+            const user = UserModel.create(options);
+            return [user.userId, user];
+        }));
         this.subscribe(this.sessionId, 'addUserModel', this.addUserModel);
     }
     findUser(userId) {
-        return this.users.find(user => user.userId === userId);
+        return this.users.get(userId);
     }
     addUserModel(userId) {
         this.log('addUserModel', userId, 'among', this.users);
-        this.users.push(UserModel.create({userId: userId}));
+        this.users.set(userId, UserModel.create({userId: userId}));
         this.publish(this.sessionId, 'addUserView', userId);
     }
 }
@@ -213,7 +221,7 @@ class UserverseView extends Croquet.View { // Local version for display.
     constructor(model) {
         super(model);
         this.model = model;
-        this.users = this.model.users.map(userModel => new UserView(userModel));
+        this.users = new Map(Array.from(this.model.users.values()).map(userModel => [userModel.userId, new UserView(userModel)]));
         this.subscribe(this.sessionId, "view-join", this.ensureModel);
         this.subscribe(this.sessionId, 'addUserView', this.addUserView);
         this.subscribe(this.sessionId, 'displayNearby', this.displayNearby);
@@ -240,12 +248,12 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.logMessage(args.join(' '));
     }
     findUser(userId) {
-        return this.users.find(user => user.model.userId === userId);
+        return this.users.get(userId);
     }
     idKey() { return Q.APP_VERSION + ' UserId'; }
     uuidv4() { // Not crypto strong, but good enough for prototype.
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            var r = this.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
     }
@@ -267,24 +275,27 @@ class UserverseView extends Croquet.View { // Local version for display.
         const userModel = this.model.findUser(userId);
         if (!userModel) return; // can happen in the presence of people resetting
         const userView = new UserView(userModel);
+        this.users.set(userId, userView);
         this.startup(userView);
-        this.users.push(userView);
     }
     reset() {
+        return alert('FIXME: not working yet!');
         const idKey = this.idKey(),
-              existing = localStorage.getItem(idKey);
+              me = this.me && this.me.model;
+        this.me = undefined;
         /*
         Object.keys(localStorage).forEach(key => {
             if (/^(know|rate)\s?me/.test(key.toLowerCase())) {
                 localStorage.removeItem(key);
             }
         });*/
-        localStorage.clear()
-        if (existing) {
-            this.publish(this.me.model.userId, 'setPosition', {});
+        localStorage.clear();
+        if (me) {
+            // FIXME: In real app, this should wipe out the name, but for debugging for now...
+            this.publish(me.userId, 'setContact', {name: me.contactName + ' deleted'});
+            this.publish(me.userId, 'setPosition', {});
         }
-        this.me = undefined;
-        setTimeout(() => location.reload(true), 250);
+        this.ensureModel(this.viewId);
     }
     startup(me) {
         // It is possible to get startup twice, by this scenario and similar (slightly different orders):
@@ -313,9 +324,14 @@ class UserverseView extends Croquet.View { // Local version for display.
     computeNearby() {
         const me = this.me,
               myPosition = me.model.position,
-              users = this.users.filter(user => this.model.users.includes(user.model) && user.model.position);
-        users.forEach(user => user.distance = Math.hypot(user.model.position[0] - myPosition[0],
-                                                         user.model.position[1] - myPosition[1]));
+              users = [];
+        for (const [userId, view] of this.users) {
+            let model = view.model;
+            if (!model.position || (this.model.findUser(userId) !== model)) continue;
+            view.distance = Math.hypot(model.position[0] - myPosition[0],
+                                       model.position[1] - myPosition[1]);
+            users.push(view);
+        }
         users.sort((a, b) => Math.sign(a.distance - b.distance));
         return users;
     }
@@ -323,6 +339,9 @@ class UserverseView extends Croquet.View { // Local version for display.
         return model && model.position; // FIXME
     }
     displayNearby() {
+        if (!this.me) {
+            return 
+        }
         const model = this.me && this.me.model;
         if (!model || !model.initial || !model.photo || !this.hasRecentPosition(model)
             || !setup.classList.contains('none')
