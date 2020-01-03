@@ -4,10 +4,26 @@ body {
     font-size: 32px;
 }
 input { font-size: 32px; }
-#setup {
-    background-color: white;
-    color: black;
-}    
+#showQR > img { width: 48px; }
+button > i.material-icons { font-size: 48px; }
+#selfieButtons {
+    bottom: 32px;
+    position: relative;
+    left: 0
+}
+#selfie {
+    position: relative;
+    margin: auto;
+    width: 400px;
+}
+#selfieVideo, #selfieImg {
+    height: 400px;
+    width: 400px;
+    border-radius: 50%;
+    display: block;
+    object-fit: cover;
+}
+#setup img { max-width: 400px; }
 #nearby {
     /* Children with float: left do not animate smoothly when their
        changing size allows their row to change. So lock them into
@@ -17,7 +33,6 @@ input { font-size: 32px; }
     width: 800px;
     margin: auto;
 }
-
 .avatar {
     position: relative; /* so that it becomes the containing box */
     height: 200px;
@@ -31,6 +46,7 @@ input { font-size: 32px; }
     width: 400px;
     opacity: 1;    
 }
+
 /* There's no "all siblings" selector in css yet, so add .hasSelected
    to parent when we add .selected to one child. This then catches all
    the other children. */
@@ -38,6 +54,11 @@ input { font-size: 32px; }
     height: 0;
     width: 0;
     opacity: 0;
+}
+
+#setup {
+    background-color: white;
+    color: black;
 }
 
 .avatar img {
@@ -59,12 +80,6 @@ input { font-size: 32px; }
 #showQR {
     border: none;
     padding: 0;
-}
-#showQR > img {
-    width: 48px;
-}
-button > i.material-icons {
-    font-size: 48px;
 }
 .avatar > span {
     line-height: 0.70;
@@ -91,24 +106,6 @@ button > i.material-icons {
 #takeSelfie { color: blue; }
 #retakeSelfie { color: red; }
 #acceptSelfie { color: green; }
-#selfieButtons {
-    position: relative;
-    bottom: 32px;
-    left: 0
-}
-#selfie {
-    position: relative;
-    margin: auto;
-    width: 400px;
-}
-#selfieVideo, #selfieImg {
-    height: 400px;
-    width: 400px;
-    border-radius: 50%;
-    display: block;
-    object-fit: cover;
-}
-#setup img { max-width: 400px; }
 
 #showQR.showing > img,
 #showQR:not(.showing) > div,
@@ -138,8 +135,6 @@ button > i.material-icons {
     /* WordCloud specifically sets the element position to relative. Cannot override here. */
 }    
 
-.ratingOptions {
-}
 .autocomplete { color: black; }
 
 /* The next two are nice on desktop, but pointless on touch devices */

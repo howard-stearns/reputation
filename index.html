@@ -7,6 +7,13 @@
     <link rel="stylesheet" href="autocomplete.css">
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
+    <script>
+    window.addEventListener("error", function (e) { // Note: this won't catch some kinds of errors, such as access control checks.
+      console.log('got error', e);
+      alert("Error occurred: " + ((e.error && e.error.message) || e.message || "unknown"));
+      return false;
+    });
+    </script>
   </head>
 
   <body>

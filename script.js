@@ -45,7 +45,8 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.48"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.50"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.LOCAL_LOG = true;
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
 Q.INITIAL_WORD_LIST = `teacher mentor patron protector entertainer considerate courteous courageous adventurous
@@ -85,13 +86,14 @@ class WordCountModel extends Croquet.Model { // Maintains a map of word => count
         this.words.set(word, was + increment);
     }
     log(...args) {
+        if (Q.LOCAL_LOG) return console.log(...args);
         this.publish(this.sessionId, 'log', args.join(' '));
     }
 }
 
 // Database of the users, and the data that is common to all users (available words). Could have multiples if we want to support factions.
 class UserverseModel extends WordCountModel { 
-    init(options) { // Initial data for this userverse.
+    init(options) { // Initial data for this userverse, IFF there is no existing snapshot.
         this.log('init UserverseModel', options, this);
         super.init(options);
 
@@ -115,26 +117,25 @@ class UserverseModel extends WordCountModel {
             const user = UserModel.create(options);
             return [user.userId, user];
         }));
-        this.subscribe(this.sessionId, 'addUserModel', this.addUserModel);
+        this.subscribe(this.sessionId, 'addUser', this.addUser);
     }
-    findUser(userId) {
-        return this.users.get(userId);
+    findUser(userId) { // Answer existing UserModel, if any.
+        return this.users.get(userId); // FIXME: use wellKnownModel mechanism.
     }
-    addUserModel(userId) {
-        this.log('addUserModel', userId, 'among', this.users);
-        this.users.set(userId, UserModel.create({userId: userId}));
+    addUser(userId) { // Create the model and the view
+        this.log('addUser', userId, 'among', this.users);
+        this.users.set(userId, UserModel.create({userId: userId})); // Other info will be updated for everyone by that user's setup.
         this.publish(this.sessionId, 'addUserView', userId);
     }
 }
 
 class UserModel extends WordCountModel { // Each user's data
-    init(options) { // Initial random demo data.
+    init(options) { // Initial setup IFF not already in snapshot.
         this.log('init UserModel', options, this);
         super.init(options);
         if (options.name) {
             this.initDeadPerson(options);  // Name at init time only happens with the sample users.
         } else {
-            //this.initRandom(options);
             this.userId = options.userId;
         }
         this.subscribe(this.userId, 'rate', this.rate);
@@ -150,36 +151,20 @@ class UserModel extends WordCountModel { // Each user's data
         this.setPosition({position: position});
         words.split(/\s+/).reverse().forEach((word, index) => this.incrementWordCount(word, index + 1));
     }
-    initRandom({userId}) { // For demo purposes, start the suer with random data.
-        this.userId = userId;
-        this.initial = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 16)];
-        this.color = this.random_hsl_color(10, 50);
-        this.ratedBy = [userId];
-        // Note: not really max weight, because there's nothing prevening a "double shot", where the word gets picked twice.
-        const MIN_RANDOM_WORDS = 5, MAX_RANDOM_WORDS = 20, MAX_RANDOM_WEIGHT = 30;
-        const userverse = this.wellKnownModel('modelRoot'),
-              allWords = Array.from(userverse.words.keys()),
-              nAllWords = allWords.length,
-              spread = (1 + MAX_RANDOM_WORDS - MIN_RANDOM_WORDS);
-        for (let nWords = MIN_RANDOM_WORDS + Math.floor(this.random() * spread);
-             nWords > 0;
-             nWords--) {
-            let index = Math.floor(this.random() * nAllWords), // pick a word
-                count = Math.ceil(this.random() * MAX_RANDOM_WEIGHT) || 1; // r endorsements for that word
-            this.incrementWordCount(allWords[index], count);
-        }
-    }
-    random_hsl_color(min, max) {
-      return 'hsl(' +
-        (Math.random() * 360).toFixed() + ',' +
-        (Math.random() * 30 + 70).toFixed() + '%,' +
-        (Math.random() * (max - min) + min).toFixed() + '%)';
-    }
-
-    incrementWordCount(word, increment = 1) {
+    incrementWordCount(word, increment = 1) { // For this user, AND for the total popularity of all words in the userverse.
         super.incrementWordCount(word, increment);
         this.wellKnownModel('modelRoot').incrementWordCount(word, increment);
     }
+    maybeUpdateWord(newWord, key, weight = 1) { // Update user's own suggestions and their counts, answering true IFF actually a change.
+        const oldWord = this[key];
+        if (newWord === oldWord) return false;
+        if (oldWord) this.incrementWordCount(oldWord, 0 - weight);
+        if (newWord) this.incrementWordCount(newWord, weight);
+        this[key] = newWord;
+        return true;
+    }
+
+    // These messages handle updates to the model, and tell views to update as necessary.
     rate({word, increment = 1}) {
         this.incrementWordCount(word, increment);
     }
@@ -202,27 +187,22 @@ class UserModel extends WordCountModel { // Each user's data
         this.publish(this.userId, 'updateDisplay');
     }
     setThreeWords([word1, word2, word3]) {
-        this.maybeUpdateWord(word1, 'word1', 2);
-        this.maybeUpdateWord(word2, 'word2', 1);
-        this.maybeUpdateWord(word3, 'word3', 1);
-        this.publish(this.userId, 'updateDisplay');
-    }
-    maybeUpdateWord(newWord, key, weight = 1) {
-        const oldWord = this[key];
-        if (newWord === oldWord) return false;
-        if (oldWord) this.incrementWordCount(oldWord, 0 - weight);
-        if (newWord) this.incrementWordCount(newWord, weight);
-        this[key] = newWord;
-        return true;
+        if ([ // Don't short-circuit with ||. Update each.
+            this.maybeUpdateWord(word1, 'word1', 2),
+            this.maybeUpdateWord(word2, 'word2', 1),
+            this.maybeUpdateWord(word3, 'word3', 1)
+        ].some(bool => bool)) {
+            this.publish(this.userId, 'updateDisplay');
+        }
     }
 }
 
 class UserverseView extends Croquet.View { // Local version for display.
-    constructor(model) {
+    constructor(model) { // Set up subscriptions and DOM event handlers.
         super(model);
         this.model = model;
         this.users = new Map(Array.from(this.model.users.values()).map(userModel => [userModel.userId, new UserView(userModel)]));
-        this.subscribe(this.sessionId, "view-join", this.ensureModel);
+        this.subscribe(this.sessionId, "view-join", this.ensureLocalModel);
         this.subscribe(this.sessionId, 'addUserView', this.addUserView);
         this.subscribe(this.sessionId, 'displayNearby', this.displayNearby);
         this.subscribe(this.sessionId, 'log', this.logMessage);
@@ -237,45 +217,46 @@ class UserverseView extends Croquet.View { // Local version for display.
         cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
         showQR.onclick = () => this.showQR();
     }
-    logMessage(message) {
-        console.log(message);
-        /*
+    logMessage(message) { // When showing messages in the app pesudoConsole.
         const item = document.createElement('DIV');
         item.innerHTML = message;
-        pseudoConsole.append(item);*/
+        pseudoConsole.append(item);
     }
     log(...args) {
+        if (Q.LOCAL_LOG) return console.log(...args);
         this.logMessage(args.join(' '));
     }
-    findUser(userId) {
+    findUser(userId) { // If we have a view.
         return this.users.get(userId);
     }
-    idKey() { return Q.APP_VERSION + ' UserId'; }
+    idKey() { return Q.APP_VERSION + ' UserId'; } // This version's key in localStorage.
     uuidv4() { // Not crypto strong, but good enough for prototype.
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
             var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
     }
-    ensureModel(viewId) {
-        this.log('ensureModel', viewId, this.viewId, Q.APP_VERSION);
+    ensureLocalModel(viewId) { // When anyone joins, make sure WE have a model.
+        this.log('ensureLocalModel', viewId, this.viewId, Q.APP_VERSION);
         if (viewId !== this.viewId) return; // Not for us to act on.
         const idKey = this.idKey(),
               userId = localStorage.getItem(idKey) || (localStorage.setItem(idKey, this.uuidv4()), localStorage.getItem(idKey)),
-              // If the snasphot is current, the constructor would have created our view we were already in the model
+              // If the snasphot is current, the constructor would have created our view if we were already in the model
               existingView = this.findUser(userId);
-        this.log('ensureModel', userId, 'existingView:', existingView);
+        this.log('ensureLocalModel', userId, 'existingView:', existingView);
         if (existingView) {
-            return this.startup(existingView);
+            return this.startup(existingView); // set up our existing view.
         }
-        this.publish(this.sessionId, 'addUserModel', userId);
+        this.log('ensureLocalModel publish', this.sessionId, 'addUser', userId);
+        this.publish(this.sessionId, 'addUser', userId); // Tell everyone to create us.
     }
-    addUserView(userId) {
+    addUserView(userId) { // A post-snapshot model has been created for this userId. Now make the view.
         this.log('addUserView', userId);
         const userModel = this.model.findUser(userId);
         if (!userModel) return; // can happen in the presence of people resetting
         const userView = new UserView(userModel);
         this.users.set(userId, userView);
+        if (userId !== localStorage.getItem(this.idKey())) return; // The view is for a different user. We're done.
         this.startup(userView);
     }
     reset() {
@@ -295,14 +276,18 @@ class UserverseView extends Croquet.View { // Local version for display.
             this.publish(me.userId, 'setContact', {name: me.contactName + ' deleted'});
             this.publish(me.userId, 'setPosition', {});
         }
-        this.ensureModel(this.viewId);
+        this.ensureLocalModel(this.viewId);
     }
     startup(me) {
+        // FIXME: is this still true?
         // It is possible to get startup twice, by this scenario and similar (slightly different orders):
-        // Previous session published addUserModel, but not snapshot created.
+        // Previous session published addUser, but no snapshot created.
         // So this session starts with that method, resulting in addUserView => startup.
-        // Then this session also gets an ensureModel as always, finding an existingView and ends up here.
-        if (this.me) return this.me;
+        // Then this session also gets an ensureLocalModel as always, finding an existingView and ends up here.
+        if (this.me) {
+            console.log('FIXME got double startup', me);
+            return this.me;
+        }
         this.me = me;
         this.log('startup', me);
         navigator.geolocation.getCurrentPosition(position => {
@@ -321,7 +306,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         } 
         return me;
     }
-    computeNearby() {
+    computeNearby() { // Answer a sorted list of only those UserViews that are "near" me.
         const me = this.me,
               myPosition = me.model.position,
               users = [];
@@ -338,9 +323,9 @@ class UserverseView extends Croquet.View { // Local version for display.
     hasRecentPosition(model = this.me && this.me.model) {
         return model && model.position; // FIXME
     }
-    displayNearby() {
+    displayNearby() { // If ready (e.g., setup, not focused on someone, and geo are completed), display the nearby UserViews.
         if (!this.me) {
-            return 
+            return;
         }
         const model = this.me && this.me.model;
         if (!model || !model.initial || !model.photo || !this.hasRecentPosition(model)
@@ -442,7 +427,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         showQR.classList.toggle('showing');
         if (!showQR.classList.contains('showing')) return;
         var generator = qrcode(0, 'H');
-        console.log('qr', generator);
+        this.log('qr', generator);
         generator.addData('https://howard-stearns.github.io/reputation/');
         generator.make();
         qr.innerHTML = generator.createImgTag(15);
@@ -455,12 +440,14 @@ class UserView extends Croquet.View {
         this.model = model;
         const avatar = document.importNode(avatarTemplate.content.firstElementChild, true);
         this.avatar = avatar;
+        this.list = []; // defensive programming
         this.updateDisplay(avatar, model);
         avatar.onclick = () => this.toggleSelection();
         this.subscribe(model.userId, 'updateDisplay', this.updateDisplay);
         this.subscribe(model.userId, 'renderedCloud', this.renderedCloud);
     }
     log(...args) {
+        if (Q.LOCAL_LOG) return console.log(...args);        
         this.publish(this.sessionId, 'log', args.join(' '));
     }
     updateDisplay(avatar = this.avatar, model = this.model) {
@@ -585,7 +572,6 @@ class UserView extends Croquet.View {
         });
     }
 }
-
 
 [WordCountModel, UserverseModel, UserModel].forEach(model => model.register());
 Croquet.startSession(document.title, UserverseModel, UserverseView);
