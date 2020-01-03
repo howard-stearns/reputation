@@ -2,34 +2,42 @@
 /* 
 TODO:
 
-- bug with multiple users
 - bug with button size
 - bug with autocomplete size
+- comment out geo debug
+- comment out contact card debug
+
+- date of picture change
+
+- status (in settings, and display it)
+- contact
+ - include more info
+ - add to yours
+- button to invoke web share api. Maybe in conjunction with expanding QR code? (Don't forget to guard with feature detect because not available on non-native pseudo-browsers or some desktop browsers. Devlop with Safari on osx, and must be on user action rather than, say, console. Ignores title property?)
+
+- add to homescreen - prompt on ios
+- is camera available in ios standalone? (workarounds might be to add to homescreen in a browser mode, and I read that "PWAs that need to open the camera, such as QR Code readers can only take snapshots")
 
 - geo:
-  . should not show you if "offline", but should allow service worker. (how does user control that?) Does that first require app to be on home page?
-  . right now, we only get position and sort when you open app. When should we we update that?
-  . computeNearby should limit those within accuracy, if that's less than some limit, otherwise some limit N.
-  . should we show yourself with the nearby, or only in settings, or what?
+ - service workers
+ - should not show you if "offline", but should allow service worker. (how does user control that?) Does that first require app to be on home page?
+ - right now, we only get position and sort when you open app. When should we we update that?
+ - computeNearby should limit those within accuracy, if that's less than some limit, otherwise some limit N.
+ -  should we show yourself with the nearby, or only in settings, or what?
 
-- add to homescreen prompt 
-  (https://stackoverflow.com/questions/47559051/ios-devices-add-website-to-homescreen-as-web-app-not-shortcut
-   https://github.com/cubiq/add-to-homescreen,
-   https://stackoverflow.com/questions/50332119/is-it-possible-to-make-an-in-app-button-that-triggers-the-pwa-add-to-home-scree/50356149#50356149)
-
-- share contact info
-
-- status
-- date of picture change
-- transfer to another device (most alive one wins)
-
-- how much can be input by audio?
-- how much can be conveyed by audio so that you're not staring at your phone?
 - message for word that does not complete
-- setup cleanup
 - dynamically adjust wordcloud weight
+- clicking your own picture or (placeholder) status allows you to change it (instead of having to go through settings)
+- speech synthesis so that you're not staring at phone. (Is it true that this requires headset to be connected? That's hard on demos.)
+- transfer to another device (most alive one wins)
+- setup cleanup
+- mirror camera when aligning
 - pending words: collect for voting; secret password to show upvoted words and approve them
-- share interaction preferences
+- datalist for word choice, instead of select? (combines filtered list choices combined with keyboard?)
+- demo apple pay
+- demo sensors for orientation in space. (Might now be disabled by default, such that we have to tell people to enable settings => safari => motion & orientation access. See https://github.com/w3c/deviceorientation/issues/57#issuecomment-476373339)
+- demo bose ar for orientation in space
+- google analytics, with pipeline, events, errors
 - rate this app
 - lockout time (against re-voting)
 - public figure of the day
@@ -359,7 +367,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         case 'threeWords':
             word1.value = me.model.word1 || '';
             word2.value = me.model.word2 || '';
-            word3.value = me.model.word2 || '';        
+            word3.value = me.model.word3 || '';
             break;
         }
     }
@@ -472,7 +480,6 @@ class UserView extends Croquet.View {
         }
     }
     initRater() {
-        debug.innerHTML = `debug: ${this.model.position}, ${this.model.accuracy}`;
         this.renderCloud();
         this.initAutocomplete();
     }
