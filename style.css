@@ -4,7 +4,7 @@ body {
     font-size: 32px;
 }
 input { font-size: 32px; }
-#showQR > img { width: 48px; }
+img[src="qrbutton.jpg"] { width: 48px; }
 button > i.material-icons { font-size: 48px; }
 #selfieButtons {
     bottom: 32px;
@@ -70,12 +70,15 @@ button > i.material-icons { font-size: 48px; }
 }
 .settingsButton {
     color: rgb(82, 202, 239);
-    border: none;
-}
-#goSettings {
     background-color: black;
+    border: none;
     position: absolute;
     right: 0
+}
+.shareButton {
+    color: rgb(82, 202, 239);
+    background-color: black;
+    border: none;
 }
 #showQR {
     border: none;
@@ -101,6 +104,7 @@ button > i.material-icons { font-size: 48px; }
 #acceptSelfie i:after { content: "check_circle_outline" }
 #retakeSelfie i:after { content: "autorenew" }
 .settingsButton i:after { content: "settings_applications" }
+.shareButton i:after { content: "share" }
 .next i:after { content: "arrow_forward" }
 .back i:after { content: "arrow_back" }
 #takeSelfie { color: blue; }

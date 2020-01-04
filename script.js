@@ -2,18 +2,22 @@
 /* 
 TODO:
 
-- bug with button size
-- bug with autocomplete size
-- comment out geo debug
-- comment out contact card debug
-
-- date of picture change
-
-- status (in settings, and display it)
+- share: You want to interact with someone who doesn't have app:
+  - webshare api
+  - qr code
+- tags: public info that helps people decide whether/how to interact with you. Change at any time. E.g., "Joe", "need help finding bolt" (in hardware store), "blockchain expert" (at networking event).
+- mutual: 
+ - when the the first person selects someone (other than themselves or the dead people):
+  - it says on the first person's display: "Waiting for user 'H' to select you for interaction."
+  - sends a "message" to the other that 'P' wants to interact with them.
+ - when they say 'ok' (or if it is you/dead), it goes to word cloud and options
 - contact
  - include more info
  - add to yours
-- button to invoke web share api. Maybe in conjunction with expanding QR code? (Don't forget to guard with feature detect because not available on non-native pseudo-browsers or some desktop browsers. Devlop with Safari on osx, and must be on user action rather than, say, console. Ignores title property?)
+- date of picture change
+- settings appears as the last "user" image instead of a different kind of button
+- bug with button size
+- bug with autocomplete size
 
 - add to homescreen - prompt on ios
 - is camera available in ios standalone? (workarounds might be to add to homescreen in a browser mode, and I read that "PWAs that need to open the camera, such as QR Code readers can only take snapshots")
@@ -25,6 +29,7 @@ TODO:
  - computeNearby should limit those within accuracy, if that's less than some limit, otherwise some limit N.
  -  should we show yourself with the nearby, or only in settings, or what?
 
+- fix reset
 - message for word that does not complete
 - dynamically adjust wordcloud weight
 - clicking your own picture or (placeholder) status allows you to change it (instead of having to go through settings)
@@ -54,6 +59,7 @@ TBD:
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
 Q.APP_VERSION = "KnowMe 0.0.50"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.URL = "https://howard-stearns.github.io/reputation/";
 Q.LOCAL_LOG = true;
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
@@ -111,16 +117,24 @@ class UserverseModel extends WordCountModel {
         this.users = new Map([ // Set up some universally available dead people, so that there's always someone to work with.
             {name: "Alan Turing", words: "curious logical resourceful knowledgeable persistent kind practical rational",
              position: [51.9977, 0.7407],
+             tag: "Thinking...",
              photo: "alan-turing.jpg"},
             {name: "Oscar Wilde", words: "historian witty gregarious naturalist charming talented exuberant ernest adventurous",
              position: [48.860000, 2.396000],
+             tags: "Taken",
              photo: "oscar-wilde.jpg"},
             {name: "Cleopatra", words: "persuasive ambitious patriotic resourceful adaptable knowledgeable passionate exciting courageous adventurous persistent witty skilled",
              position: [31.200000, 29.916667],
+             tags: "Strange and terrible events welcome",
              photo: "cleopatra.jpg"},
             {name: "Eleanor Roosevelt", words: "kind compassionate spiritual resourceful persuasive knowledgeable courageous",
              position: [41.7695366,-73.938733],
-             photo: "eleanor-roosevelt.jpg"}
+             tags: "Planning peace",
+             photo: "eleanor-roosevelt.jpg"},
+            {name: "Share", words: "",
+             tags: "Share this app",
+             position: [-90, 0],
+             photo: "qrbutton.jpg"}
         ].map(options => {
             const user = UserModel.create(options);
             return [user.userId, user];
@@ -209,7 +223,7 @@ class UserverseView extends Croquet.View { // Local version for display.
     constructor(model) { // Set up subscriptions and DOM event handlers.
         super(model);
         this.model = model;
-        this.users = new Map(Array.from(this.model.users.values()).map(userModel => [userModel.userId, new UserView(userModel)]));
+        this.users = new Map(Array.from(this.model.users.values()).map(userModel => [userModel.userId, new UserView(userModel, this)]));
         this.subscribe(this.sessionId, "view-join", this.ensureLocalModel);
         this.subscribe(this.sessionId, 'addUserView', this.addUserView);
         this.subscribe(this.sessionId, 'displayNearby', this.displayNearby);
@@ -218,12 +232,12 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.introScreens = ['none', 'intro', 'info', 'infoSettings', 'contact', 'selfie', 'threeWords'];
         [goSettings].concat(Array.from(document.querySelectorAll(".next"))).forEach(button => button.onclick = () => this.nextIntroScreen());
         Array.from(document.querySelectorAll(".back")).forEach(button => button.onclick = () => this.previousIntroScreen());
+        
 
         takeSelfie.onclick = () => this.takeSelfie();
         retakeSelfie.onclick = () => this.setupSelfie();
         reset.onclick = () => this.reset();
         cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
-        showQR.onclick = () => this.showQR();
     }
     logMessage(message) { // When showing messages in the app pesudoConsole.
         const item = document.createElement('DIV');
@@ -262,7 +276,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.log('addUserView', userId);
         const userModel = this.model.findUser(userId);
         if (!userModel) return; // can happen in the presence of people resetting
-        const userView = new UserView(userModel);
+        const userView = new UserView(userModel, this);
         this.users.set(userId, userView);
         if (userId !== localStorage.getItem(this.idKey())) return; // The view is for a different user. We're done.
         this.startup(userView);
@@ -431,21 +445,22 @@ class UserverseView extends Croquet.View { // Local version for display.
         halfCanvas.getContext('2d').drawImage(canvas, 0, 0, halfCanvas.width, halfCanvas.height);
         return halfCanvas;
     }
-    showQR() {
+    showQR() { // FIXME
         showQR.classList.toggle('showing');
         if (!showQR.classList.contains('showing')) return;
         var generator = qrcode(0, 'H');
         this.log('qr', generator);
-        generator.addData('https://howard-stearns.github.io/reputation/');
+        generator.addData(Q.URL);
         generator.make();
         qr.innerHTML = generator.createImgTag(15);
     }
 }
 
 class UserView extends Croquet.View {
-    constructor(model) {
+    constructor(model, userverse) {
         super(model);
         this.model = model;
+        this.userverse = userverse; // For use in share.
         const avatar = document.importNode(avatarTemplate.content.firstElementChild, true);
         this.avatar = avatar;
         this.list = []; // defensive programming
@@ -464,6 +479,23 @@ class UserView extends Croquet.View {
         if (model.photo) img.src = model.photo;
         else if (model.color) img.style.backgroundColor = model.color;
     }
+    async share() { // FIXME - navigator.share must be in click handler, not a message
+        console.log('fixme', this);
+        var id = this.userverse.me.model.initial, shared = false;
+        if ('share' in navigator) {
+            try {
+                await navigator.share({
+                    title: 'Know Me!',
+                    text: `See what people have said about "${id}", give your own impressions, and optionally share contact info.`,
+                    url: Q.URL
+                });
+                shared = true;
+            } catch (e) {
+                console.log('error:', e);
+            }
+        }
+        if (shared) this.toggleSelection();
+    }
     toggleSelection() {
         const target = this.avatar, parent = target.parentElement;
         const index = Array.prototype.indexOf.call(parent.children, target);
@@ -473,8 +505,15 @@ class UserView extends Croquet.View {
         parent.classList.toggle('hasSelected');
         const isSelected = target.classList.contains('selected');
         target.style.left = isSelected ? `-${column * width}px` : "0";
+        console.log('fixme', isSelected, this.model.contactName);
         if (isSelected) {
-            this.initRater();
+            switch (this.model.contactName) { // FIXME: users can set name to these!
+            case 'Share':
+                this.share(); // navigator.share must be directly in the handler, not through a message.
+                break;
+            default:
+                this.initRater();
+            }
         } else {
             this.publish(this.sessionId, 'displayNearby');
         }
