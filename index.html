@@ -20,7 +20,7 @@
     <template id="avatarTemplate">
       <div class="avatar">
         <img src="user1.png" alt="avatar"></img>
-        <!-- <i class="material-icons"></i> -->
+        <button class="none"><i class="material-icons"></i></button>
         <span>H</span>
       </div>
     </template>
@@ -82,6 +82,7 @@
     <section id="picker">
       <div id="nearby"></div>
       <div class="ratingOptions">
+        <div id="qr"></div> <!-- must preceed the siblings for use in css -->
         <div id="cloud" class="cloud"></div>
         <div class="input"><label for="wordInput">or type a word</label> <input type="text" id="wordInput"></input></div>
       </div>
@@ -106,7 +107,7 @@
 <!-- REV:2008-04-24T19:52:43Z -->
 <!-- END:VCARD">Gump data url test</a> -->
 
-    <script src='https://croquet.studio/sdk/croquet-latest.min.js'></script>
+    <script src="https://croquet.studio/sdk/croquet-latest.min.js"></script>
     <script src="wordcloud2.js"></script>
     <script src="autocomplete.js"></script>
     <script src="qrcode.js"></script>

@@ -2,9 +2,7 @@
 /* 
 TODO:
 
-- share: You want to interact with someone who doesn't have app:
-  - webshare api
-  - qr code
+- share: You want to interact with someone who doesn't have app
 - tags: public info that helps people decide whether/how to interact with you. Change at any time. E.g., "Joe", "need help finding bolt" (in hardware store), "blockchain expert" (at networking event).
 - mutual: 
  - when the the first person selects someone (other than themselves or the dead people):
@@ -33,9 +31,9 @@ TODO:
 - message for word that does not complete
 - dynamically adjust wordcloud weight
 - clicking your own picture or (placeholder) status allows you to change it (instead of having to go through settings)
-- speech synthesis so that you're not staring at phone. (Is it true that this requires headset to be connected? That's hard on demos.)
+- setup cleanup, including cube rotation
 - transfer to another device (most alive one wins)
-- setup cleanup
+- speech synthesis so that you're not staring at phone. (Is it true that this requires headset to be connected? That's hard on demos.)
 - mirror camera when aligning
 - pending words: collect for voting; secret password to show upvoted words and approve them
 - datalist for word choice, instead of select? (combines filtered list choices combined with keyboard?)
@@ -134,7 +132,8 @@ class UserverseModel extends WordCountModel {
             {name: "Share", words: "",
              tags: "Share this app",
              position: [-90, 0],
-             photo: "qrbutton.jpg"}
+             buttonClass: 'shareButton'
+            }
         ].map(options => {
             const user = UserModel.create(options);
             return [user.userId, user];
@@ -166,10 +165,11 @@ class UserModel extends WordCountModel { // Each user's data
         this.subscribe(this.userId, 'threeWords', this.setThreeWords);
         this.subscribe(this.userId, 'setPosition', this.setPosition);
     }
-    initDeadPerson({name, words, photo, position}) { // Set up as an always "online" person to play with.
+    initDeadPerson({name, words, photo, buttonClass, position}) { // Set up as an always "online" person to play with.
         this.userId = name;
         this.setContact({name: name});
-        this.setPhoto(photo);
+        if (photo) this.setPhoto(photo);
+        if (buttonClass) this.buttonClass = buttonClass;
         this.setPosition({position: position});
         words.split(/\s+/).reverse().forEach((word, index) => this.incrementWordCount(word, index + 1));
     }
@@ -301,15 +301,11 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.ensureLocalModel(this.viewId);
     }
     startup(me) {
-        // FIXME: is this still true?
         // It is possible to get startup twice, by this scenario and similar (slightly different orders):
         // Previous session published addUser, but no snapshot created.
         // So this session starts with that method, resulting in addUserView => startup.
         // Then this session also gets an ensureLocalModel as always, finding an existingView and ends up here.
-        if (this.me) {
-            console.log('FIXME got double startup', me);
-            return this.me;
-        }
+        if (this.me) return this.me;
         this.me = me;
         this.log('startup', me);
         navigator.geolocation.getCurrentPosition(position => {
@@ -445,15 +441,6 @@ class UserverseView extends Croquet.View { // Local version for display.
         halfCanvas.getContext('2d').drawImage(canvas, 0, 0, halfCanvas.width, halfCanvas.height);
         return halfCanvas;
     }
-    showQR() { // FIXME
-        showQR.classList.toggle('showing');
-        if (!showQR.classList.contains('showing')) return;
-        var generator = qrcode(0, 'H');
-        this.log('qr', generator);
-        generator.addData(Q.URL);
-        generator.make();
-        qr.innerHTML = generator.createImgTag(15);
-    }
 }
 
 class UserView extends Croquet.View {
@@ -464,6 +451,12 @@ class UserView extends Croquet.View {
         const avatar = document.importNode(avatarTemplate.content.firstElementChild, true);
         this.avatar = avatar;
         this.list = []; // defensive programming
+        console.log('fixme user model:', model, 'avatar:', avatar);
+        if (model.buttonClass) {
+            avatar.classList.add('pseudoButton');
+            avatar.querySelector('img').className = 'none';
+            avatar.querySelector('button').className = model.buttonClass;
+        }
         this.updateDisplay(avatar, model);
         avatar.onclick = () => this.toggleSelection();
         this.subscribe(model.userId, 'updateDisplay', this.updateDisplay);
@@ -479,9 +472,17 @@ class UserView extends Croquet.View {
         if (model.photo) img.src = model.photo;
         else if (model.color) img.style.backgroundColor = model.color;
     }
+    showQR(id) {
+        qr.className = '';
+        var generator = qrcode(0, 'H');
+        this.log('qr', generator);
+        generator.addData(Q.URL); // FIXME: maybe something like + '#' + id ?
+        generator.make();
+        qr.innerHTML = generator.createImgTag(15);
+    }
     async share() { // FIXME - navigator.share must be in click handler, not a message
-        console.log('fixme', this);
         var id = this.userverse.me.model.initial, shared = false;
+        this.showQR(id); // fixme : maybe userId rather than id?
         if ('share' in navigator) {
             try {
                 await navigator.share({
@@ -505,9 +506,8 @@ class UserView extends Croquet.View {
         parent.classList.toggle('hasSelected');
         const isSelected = target.classList.contains('selected');
         target.style.left = isSelected ? `-${column * width}px` : "0";
-        console.log('fixme', isSelected, this.model.contactName);
         if (isSelected) {
-            switch (this.model.contactName) { // FIXME: users can set name to these!
+            switch (this.model.userId) {
             case 'Share':
                 this.share(); // navigator.share must be directly in the handler, not through a message.
                 break;
@@ -515,6 +515,7 @@ class UserView extends Croquet.View {
                 this.initRater();
             }
         } else {
+            qr.className = 'none';
             this.publish(this.sessionId, 'displayNearby');
         }
     }

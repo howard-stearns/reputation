@@ -41,7 +41,7 @@ button > i.material-icons { font-size: 48px; }
     left: 0;
     transition: height 1s, width 1s, left 1s, opacity 1s;    
 }
-.selected {
+.selected:not(.pseudoButton) {
     height: 400px;
     width: 400px;
     opacity: 1;    
@@ -110,6 +110,11 @@ button > i.material-icons { font-size: 48px; }
 #takeSelfie { color: blue; }
 #retakeSelfie { color: red; }
 #acceptSelfie { color: green; }
+.pseudoButton button {
+    position: absolute;
+    left: 30%;
+    top: 30%;
+}
 
 #showQR.showing > img,
 #showQR:not(.showing) > div,
@@ -117,8 +122,10 @@ button > i.material-icons { font-size: 48px; }
 #selfie:not(.lineup) #selfieVideo,
 .avatar:not(.selected) .info,
 #nearby:not(.hasSelected) ~ .ratingOptions,
+#qr:not(.none) ~ .cloud,
+#qr:not(.none) ~ .input,
+.none,
 #setup:not(.none) ~ #picker,
-#setup.none,
 #setup:not(.intro) #intro,
 #setup:not(.info) #info,
 #setup:not(.infoSettings) #infoSettings,
