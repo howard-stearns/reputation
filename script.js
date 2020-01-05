@@ -2,7 +2,6 @@
 /* 
 TODO:
 
-- tags: public info that helps people decide whether/how to interact with you. Change at any time. E.g., "Joe", "need help finding bolt" (in hardware store), "blockchain expert" (at networking event).
 - bug with button size
 - bug with autocomplete size
 - mutual: 
@@ -163,6 +162,7 @@ class UserModel extends WordCountModel { // Each user's data
         }
         this.subscribe(this.userId, 'rate', this.rate);
         this.subscribe(this.userId, 'contact', this.setContact);
+        this.subscribe(this.userId, 'tags', this.setTags);        
         this.subscribe(this.userId, 'photo', this.setPhoto);
         this.subscribe(this.userId, 'threeWords', this.setThreeWords);
         this.subscribe(this.userId, 'setPosition', this.setPosition);
@@ -236,7 +236,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.subscribe(this.sessionId, 'displayNearby', this.displayNearby);
         this.subscribe(this.sessionId, 'log', this.logMessage);
         
-        this.introScreens = ['none', 'intro', 'info', 'infoSettings', 'contact', 'selfie', 'threeWords'];
+        this.introScreens = ['none', 'intro', 'info', 'infoSettings', 'selfie', 'contact', 'threeWords'];
         Array.from(document.querySelectorAll(".next")).forEach(button => button.onclick = () => this.nextIntroScreen());
         Array.from(document.querySelectorAll(".back")).forEach(button => button.onclick = () => this.previousIntroScreen());
         
@@ -244,6 +244,9 @@ class UserverseView extends Croquet.View { // Local version for display.
         qr.onclick = () => this.findUser('Share').toggleSelection();
         takeSelfie.onclick = () => this.takeSelfie();
         retakeSelfie.onclick = () => this.setupSelfie();
+        contactName.oninput = () => {
+            if (!tags.value) tags.placeholder = this.tagsDefault() || 'e.g., blockchain expert';
+        }
         reset.onclick = () => this.reset();
         cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
     }
@@ -390,11 +393,15 @@ class UserverseView extends Croquet.View { // Local version for display.
             break;
         }
     }
+    tagsDefault() {
+        return contactName.value.split(/\s/)[0];
+    }
     acceptLoseVisibility(screen) { // A setup screen is being dismissed: do whatever needs saving.
         const me = this.me;
         switch (screen) {
         case 'contact':
             this.publish(me.model.userId, 'contact', {name: contactName.value});
+            this.publish(me.model.userId, 'tags', tags.value || this.tagsDefault());
             break;
         case 'selfie':
             this.publish(this.me.model.userId, 'photo', selfieImg.getAttribute('src'));

@@ -4,8 +4,12 @@ body {
     font-size: 32px;
 }
 input { font-size: 32px; }
-img[src="qrbutton.jpg"] { width: 48px; }
+img[src="qrbutton.jpg"] { width: 30px; }
 button > i.material-icons { font-size: 48px; }
+#setup i.material-icons {
+    font-size: 32px;
+    background-color: white;
+}
 #selfieButtons {
     bottom: 32px;
     position: relative;
@@ -68,14 +72,8 @@ button > i.material-icons { font-size: 48px; }
     height: 100%;
     object-fit: cover;
 }
+.shareButton,
 .settingsButton {
-    color: rgb(82, 202, 239);
-    background-color: black;
-    border: none;
-    position: absolute;
-    right: 0
-}
-.shareButton {
     color: rgb(82, 202, 239);
     background-color: black;
     border: none;
