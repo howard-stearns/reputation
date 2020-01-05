@@ -85,12 +85,14 @@ button > i.material-icons { font-size: 48px; }
     padding: 0;
 }
 .avatar > span {
-    line-height: 0.70;
+    z-index: 10;
+    line-height: 1.00;
     position: absolute;
     left: 0;
     bottom: 0;
     margin: 0;
     color: rgb(82, 202, 239);
+    text-shadow: 0 0 10px black, 0 0 5px black;
 }
 .avatar > i {
     position: absolute;

@@ -2,8 +2,9 @@
 /* 
 TODO:
 
-- share: You want to interact with someone who doesn't have app
 - tags: public info that helps people decide whether/how to interact with you. Change at any time. E.g., "Joe", "need help finding bolt" (in hardware store), "blockchain expert" (at networking event).
+- bug with button size
+- bug with autocomplete size
 - mutual: 
  - when the the first person selects someone (other than themselves or the dead people):
   - it says on the first person's display: "Waiting for user 'H' to select you for interaction."
@@ -14,8 +15,6 @@ TODO:
  - add to yours
 - date of picture change
 - settings appears as the last "user" image instead of a different kind of button
-- bug with button size
-- bug with autocomplete size
 
 - add to homescreen - prompt on ios
 - is camera available in ios standalone? (workarounds might be to add to homescreen in a browser mode, and I read that "PWAs that need to open the camera, such as QR Code readers can only take snapshots")
@@ -56,7 +55,7 @@ TBD:
 
 const Q = Croquet.Constants; // Shared among all participants, and part of the hashed definition to be replicated.
 
-Q.APP_VERSION = "KnowMe 0.0.50"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
+Q.APP_VERSION = "KnowMe 0.0.55"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 Q.URL = "https://howard-stearns.github.io/reputation/";
 Q.LOCAL_LOG = true;
 
@@ -115,7 +114,7 @@ class UserverseModel extends WordCountModel {
         this.users = new Map([ // Set up some universally available dead people, so that there's always someone to work with.
             {name: "Alan Turing", words: "curious logical resourceful knowledgeable persistent kind practical rational",
              position: [51.9977, 0.7407],
-             tag: "Thinking...",
+             tags: "Thinking...",
              photo: "alan-turing.jpg"},
             {name: "Oscar Wilde", words: "historian witty gregarious naturalist charming talented exuberant ernest adventurous",
              position: [48.860000, 2.396000],
@@ -168,9 +167,10 @@ class UserModel extends WordCountModel { // Each user's data
         this.subscribe(this.userId, 'threeWords', this.setThreeWords);
         this.subscribe(this.userId, 'setPosition', this.setPosition);
     }
-    initDeadPerson({name, words, photo, buttonClass, position}) { // Set up as an always "online" person to play with.
+    initDeadPerson({name, words, photo, buttonClass, tags, position}) { // Set up as an always "online" person to play with.
         this.userId = name;
         this.setContact({name: name});
+        this.setTags(tags);
         if (photo) this.setPhoto(photo);
         if (buttonClass) this.buttonClass = buttonClass;
         this.setPosition({position: position});
@@ -210,6 +210,10 @@ class UserModel extends WordCountModel { // Each user's data
         this.initial = name[0];
         // FIXME more
         this.publish(this.userId, 'updateDisplay');
+    }
+    setTags(string) {
+        this.tags = string;
+        this.publish(this.usrId, 'updateDisplay');
     }
     setThreeWords([word1, word2, word3]) {
         if ([ // Don't short-circuit with ||. Update each.
@@ -366,7 +370,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         const me = this.me;
         switch (screen) {
         case 'none':
-            this.findUser('Settings').toggleSelection();
+            this.findUser('Settings').toggleSelection(true);
             this.displayNearby();
             break;
         case 'contact':
@@ -472,7 +476,7 @@ class UserView extends Croquet.View {
         this.publish(this.sessionId, 'log', args.join(' '));
     }
     updateDisplay(avatar = this.avatar, model = this.model) {
-        avatar.querySelector('span').textContent = this.model.initial;
+        avatar.querySelector('span').textContent = this.model.tags || this.model.initial;
         const img = avatar.querySelector('img');
         if (model.photo) img.src = model.photo;
         else if (model.color) img.style.backgroundColor = model.color;
@@ -502,8 +506,11 @@ class UserView extends Croquet.View {
         }
         if (shared) this.toggleSelection();
     }
-    toggleSelection() {
-        const target = this.avatar, parent = target.parentElement;
+    toggleSelection(requireSelected = false) {
+        const target = this.avatar;
+        if (requireSelected && !target.classList.contains('selected')) return;
+        const parent = target.parentElement;
+        console.log('FIXME avatar:', target, 'parent:', parent); // FIXME HRS: parent is null when we finish first-time setup.
         const index = Array.prototype.indexOf.call(parent.children, target);
         const columnWidths = getComputedStyle(parent).gridTemplateColumns.split(/\s+/);
         const nColumns = columnWidths.length, column = index % nColumns, width = parseInt(columnWidths[column]);
