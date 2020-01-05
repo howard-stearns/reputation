@@ -112,8 +112,9 @@ button > i.material-icons { font-size: 48px; }
 #acceptSelfie { color: green; }
 .pseudoButton button {
     position: absolute;
-    left: 30%;
-    top: 30%;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
 }
 
 #showQR.showing > img,

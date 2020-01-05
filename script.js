@@ -131,9 +131,12 @@ class UserverseModel extends WordCountModel {
              photo: "eleanor-roosevelt.jpg"},
             {name: "Share", words: "",
              tags: "Share this app",
+             position: [-89.9, 0],
+             buttonClass: 'shareButton'},
+            {name: "Settings", words: "",
+             tags: "Settings",
              position: [-90, 0],
-             buttonClass: 'shareButton'
-            }
+             buttonClass: 'settingsButton'}
         ].map(options => {
             const user = UserModel.create(options);
             return [user.userId, user];
@@ -230,10 +233,11 @@ class UserverseView extends Croquet.View { // Local version for display.
         this.subscribe(this.sessionId, 'log', this.logMessage);
         
         this.introScreens = ['none', 'intro', 'info', 'infoSettings', 'contact', 'selfie', 'threeWords'];
-        [goSettings].concat(Array.from(document.querySelectorAll(".next"))).forEach(button => button.onclick = () => this.nextIntroScreen());
+        Array.from(document.querySelectorAll(".next")).forEach(button => button.onclick = () => this.nextIntroScreen());
         Array.from(document.querySelectorAll(".back")).forEach(button => button.onclick = () => this.previousIntroScreen());
         
 
+        qr.onclick = () => this.findUser('Share').toggleSelection();
         takeSelfie.onclick = () => this.takeSelfie();
         retakeSelfie.onclick = () => this.setupSelfie();
         reset.onclick = () => this.reset();
@@ -362,6 +366,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         const me = this.me;
         switch (screen) {
         case 'none':
+            this.findUser('Settings').toggleSelection();
             this.displayNearby();
             break;
         case 'contact':
@@ -381,7 +386,7 @@ class UserverseView extends Croquet.View { // Local version for display.
             break;
         }
     }
-    acceptLoseVisibility(screen) {
+    acceptLoseVisibility(screen) { // A setup screen is being dismissed: do whatever needs saving.
         const me = this.me;
         switch (screen) {
         case 'contact':
@@ -507,9 +512,12 @@ class UserView extends Croquet.View {
         const isSelected = target.classList.contains('selected');
         target.style.left = isSelected ? `-${column * width}px` : "0";
         if (isSelected) {
-            switch (this.model.userId) {
+            switch (this.model.userId) { // A bit of a kludge. Get over it.
             case 'Share':
                 this.share(); // navigator.share must be directly in the handler, not through a message.
+                break;
+            case 'Settings':
+                this.userverse.nextIntroScreen();
                 break;
             default:
                 this.initRater();
