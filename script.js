@@ -2,8 +2,7 @@
 /* 
 TODO:
 
-- bug with button size
-- bug with autocomplete size
+- date of picture change
 - mutual: 
  - when the the first person selects someone (other than themselves or the dead people):
   - it says on the first person's display: "Waiting for user 'H' to select you for interaction."
@@ -12,8 +11,6 @@ TODO:
 - contact
  - include more info
  - add to yours
-- date of picture change
-- settings appears as the last "user" image instead of a different kind of button
 
 - add to homescreen - prompt on ios
 - is camera available in ios standalone? (workarounds might be to add to homescreen in a browser mode, and I read that "PWAs that need to open the camera, such as QR Code readers can only take snapshots")
@@ -56,6 +53,9 @@ const Q = Croquet.Constants; // Shared among all participants, and part of the h
 
 Q.APP_VERSION = "KnowMe 0.0.55"; // Rev'ing guarantees a fresh model (e.g., when view usage changes incompatibly during development).
 Q.URL = "https://howard-stearns.github.io/reputation/";
+Q.QR_CELL_SIZE = 7;
+Q.WORD_CLOUD_MAX_WEIGHT = 30;
+Q.MAX_SELFIE_WIDTH = 200;
 Q.LOCAL_LOG = true;
 
 // Just used in initializing the userverse. Change this constant, and you've fractured the userverse into old and new sets!
@@ -248,7 +248,25 @@ class UserverseView extends Croquet.View { // Local version for display.
             if (!tags.value) tags.placeholder = this.tagsDefault() || 'e.g., blockchain expert';
         }
         reset.onclick = () => this.reset();
-        cloud.addEventListener('wordcloudstop', () => { console.log('wordcloudstop', cloud.dataset.userId, this.publish); this.publish(cloud.dataset.userId, 'renderedCloud');});
+        cloud.addEventListener('wordcloudstop', () => {
+            console.log('wordcloudstop', cloud.dataset.userId, this.publish);
+            this.publish(cloud.dataset.userId, 'renderedCloud');
+        });
+        wordInput.onchange = () => {
+            function clickSpanIfFound(span) {
+                if (span.textContent === word) {
+                    user.updateForNewSpanChoice(span);
+                    return true;
+                }
+            }
+            const user = this.findUser(cloud.dataset.userId),
+                  word = wordInput.value;
+            if (!user.eachCloudSpan(clickSpanIfFound)) {
+                this.publish(this.model.userId, 'rate', {word: word});
+                this.yourPick = word;
+                user.renderCloud(); // FIXME- after round trip
+            }
+        }
     }
     logMessage(message) { // When showing messages in the app pesudoConsole.
         const item = document.createElement('DIV');
@@ -444,7 +462,7 @@ class UserverseView extends Croquet.View { // Local version for display.
         canvas.width = selfieVideo.videoWidth;
         canvas.height = selfieVideo.videoHeight;
         canvas.getContext('2d').drawImage(selfieVideo, 0, 0, canvas.width, canvas.height);
-        while (canvas.width >= (2 * 400)) { // Protect agains big cameras
+        while (canvas.width >= (2 * Q.MAX_SELFIE_WIDTH)) { // Protect agains big cameras
             canvas = this.getHalfScaleCanvas(canvas);
         }
         this.initConfirmSelfie(canvas.toDataURL('image/png'));
@@ -494,7 +512,7 @@ class UserView extends Croquet.View {
         this.log('qr', generator);
         generator.addData(Q.URL); // FIXME: maybe something like + '#' + id ?
         generator.make();
-        qr.innerHTML = generator.createImgTag(15);
+        qr.innerHTML = generator.createImgTag(Q.QR_CELL_SIZE);
     }
     async share() { // FIXME - navigator.share must be in click handler, not a message
         var id = this.userverse.me.model.initial, shared = false;
@@ -542,6 +560,8 @@ class UserView extends Croquet.View {
         }
     }
     initRater() {
+        this.list = this.cloudWordList();
+        this.cloudWeight = Q.WORD_CLOUD_MAX_WEIGHT;
         this.renderCloud();
         this.initAutocomplete();
     }
@@ -584,7 +604,15 @@ class UserView extends Croquet.View {
         // ...debug missing words. FIXME: should we re-render at lower weightFactor?
         const spans = cloud.querySelectorAll('span');
         const words = Array.from(spans).map(s => s.textContent);
-        this.list.forEach(pair => { if (!words.includes(pair[0])) this.log('MISSING', pair); })
+        if (this.list.some(pair => {
+            if (!words.includes(pair[0])) {
+                this.log('MISSING', pair);
+                return true;
+            }
+        })) {
+            this.cloudWeight -= 2;
+            return this.renderCloud();
+        }
 
         // ... add click handlers, and pre-select if needed.
         this.eachCloudSpan(span => {
@@ -595,19 +623,16 @@ class UserView extends Croquet.View {
         });
     }
     renderCloud() {
-        this.list = this.cloudWordList();
-        var weightFactor = 30; // FIXME: adapt this as needed
-        
+        cloud.dataset.userId = this.model.userId;        
         this.yourPick = null;
         cloud.innerHTML = ''; // Faster than removing each child, as it avoids multiple reflows.
-        cloud.dataset.userId = this.model.userId;
 
         WordCloud(cloud, {
             list: this.list,
             shape: 'circle', // 'diamond' is more likely to not fit all the words
             backgroundColor: '#0',
             color: 'random-light',
-            weightFactor: weightFactor
+            weightFactor: this.cloudWeight
             //minSize: 10 // The weight of the word in the list must be ABOVE this value to be shown
         });
     }
@@ -618,25 +643,14 @@ class UserView extends Croquet.View {
         autocomplete({
             input: wordInput,
             minLength: 1,
-            fetch: function(text, update) {
+            fetch: (text, update) => {
                 text = text.toLowerCase();
                 var suggestions = wordChoicesForAutocomplete.filter(n => n.label.startsWith(text))
                 update(suggestions);
             },
-            onSelect: function(item) {
+            onSelect: item => {
                 const word = item.label
                 wordInput.value = word;
-                function clickSpanIfFound(span) {
-                    if (span.textContent === word) {
-                        user.updateForNewSpanChoice(span);
-                        return true;
-                    }
-                }
-                if (!user.eachCloudSpan(clickSpanIfFound)) {
-                    this.publish(this.model.userId, 'rate', {word: word});
-                    this.yourPick = word;
-                    user.renderCloud(); // FIXME- after round trip
-                }
             }
         });
     }

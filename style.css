@@ -1,15 +1,34 @@
 body {
     background-color: black;
     color: white;
-    font-size: 32px;
 }
-input { font-size: 32px; }
+#nearby {
+    /* Children with float: left do not animate smoothly when their
+       changing size allows their row to change. So lock them into
+       columns. */
+    display: grid;
+    grid-template-columns: 100px 100px 100px;
+    margin: auto;
+}
+.avatar {
+    position: relative; /* so that it becomes the containing box */
+    height: 100px;
+    width: 100px;
+    opacity: 1;
+    left: 0;
+    transition: height 1s, width 1s, left 1s, opacity 1s;    
+}
+.selected:not(.pseudoButton) {
+    height: 200px;
+    width: 200px;
+    opacity: 1;    
+}
+.cloud {
+    width: 100%;
+    height: 300px;
+    /* WordCloud specifically sets the element position to relative. Cannot override here. */
+}    
 img[src="qrbutton.jpg"] { width: 30px; }
-button > i.material-icons { font-size: 48px; }
-#setup i.material-icons {
-    font-size: 32px;
-    background-color: white;
-}
 #selfieButtons {
     bottom: 32px;
     position: relative;
@@ -18,37 +37,18 @@ button > i.material-icons { font-size: 48px; }
 #selfie {
     position: relative;
     margin: auto;
-    width: 400px;
+    width: 200px;
 }
 #selfieVideo, #selfieImg {
-    height: 400px;
-    width: 400px;
+    height: 200px;
+    width: 200px;
     border-radius: 50%;
     display: block;
     object-fit: cover;
 }
-#setup img { max-width: 400px; }
-#nearby {
-    /* Children with float: left do not animate smoothly when their
-       changing size allows their row to change. So lock them into
-       columns. */
-    display: grid;
-    grid-template-columns: 200px 200px 200px 200px;
-    width: 800px;
-    margin: auto;
-}
-.avatar {
-    position: relative; /* so that it becomes the containing box */
-    height: 200px;
-    width: 200px;
-    opacity: 1;
-    left: 0;
-    transition: height 1s, width 1s, left 1s, opacity 1s;    
-}
-.selected:not(.pseudoButton) {
-    height: 400px;
-    width: 400px;
-    opacity: 1;    
+#setup {
+    margin: 10px;
+    padding: 10px;
 }
 
 /* There's no "all siblings" selector in css yet, so add .hasSelected
@@ -64,6 +64,8 @@ button > i.material-icons { font-size: 48px; }
     background-color: white;
     color: black;
 }
+#setup i.material-icons { background-color: white; }
+#setup img { max-width: 100%; }
 
 .avatar img {
     border-radius: 50%;
@@ -136,16 +138,6 @@ button > i.material-icons { font-size: 48px; }
 #selfieCanvas
 { display: none; }
 
-#setup {
-    margin: 10px;
-    padding: 10px;
-}
-
-.cloud {
-    width: 100%;
-    height: 500px;
-    /* WordCloud specifically sets the element position to relative. Cannot override here. */
-}    
 
 .autocomplete { color: black; }
 
