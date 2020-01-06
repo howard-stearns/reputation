@@ -2,7 +2,6 @@
 /* 
 TODO:
 
-- date of picture change
 - mutual: 
  - when the the first person selects someone (other than themselves or the dead people):
   - it says on the first person's display: "Waiting for user 'H' to select you for interaction."
@@ -114,18 +113,22 @@ class UserverseModel extends WordCountModel {
             {name: "Alan Turing", words: "curious logical resourceful knowledgeable persistent kind practical rational",
              position: [51.9977, 0.7407],
              tags: "Thinking...",
+             photoDate: "1951",
              photo: "alan-turing.jpg"},
             {name: "Oscar Wilde", words: "historian witty gregarious naturalist charming talented exuberant ernest adventurous",
              position: [48.860000, 2.396000],
              tags: "Taken",
+             photoDate: "1882",
              photo: "oscar-wilde.jpg"},
             {name: "Cleopatra", words: "persuasive ambitious patriotic resourceful adaptable knowledgeable passionate exciting courageous adventurous persistent witty skilled",
              position: [31.200000, 29.916667],
              tags: "Strange and terrible events welcome",
+             photoDate: "ca 40 BC",
              photo: "cleopatra.jpg"},
             {name: "Eleanor Roosevelt", words: "kind compassionate spiritual resourceful persuasive knowledgeable courageous",
              position: [41.7695366,-73.938733],
              tags: "Planning peace",
+             photoDate: "ca 1924",
              photo: "eleanor-roosevelt.jpg"},
             {name: "Share", words: "",
              tags: "Share this app",
@@ -167,11 +170,11 @@ class UserModel extends WordCountModel { // Each user's data
         this.subscribe(this.userId, 'threeWords', this.setThreeWords);
         this.subscribe(this.userId, 'setPosition', this.setPosition);
     }
-    initDeadPerson({name, words, photo, buttonClass, tags, position}) { // Set up as an always "online" person to play with.
+    initDeadPerson({name, words, photo, photoDate, buttonClass, tags, position}) { // Set up as an always "online" person to play with.
         this.userId = name;
         this.setContact({name: name});
         this.setTags(tags);
-        if (photo) this.setPhoto(photo);
+        if (photo) this.setPhoto(photo, photoDate);
         if (buttonClass) this.buttonClass = buttonClass;
         this.setPosition({position: position});
         words.split(/\s+/).reverse().forEach((word, index) => this.incrementWordCount(word, index + 1));
@@ -193,9 +196,9 @@ class UserModel extends WordCountModel { // Each user's data
     rate({word, increment = 1}) {
         this.incrementWordCount(word, increment);
     }
-    setPhoto(url) {
+    setPhoto(url, date = new Date().toLocaleString(undefined, {dateStyle: "short"})) {
         this.photo = url;
-        // FIXME set date
+        this.photoDate = date;
         // FIXME: decide where to check against changes. here or view?
         this.publish(this.userId, 'updateDisplay');
     }
@@ -560,6 +563,7 @@ class UserView extends Croquet.View {
         }
     }
     initRater() {
+        photoDate.innerHTML = this.model.photoDate || "N/A";
         this.list = this.cloudWordList();
         this.cloudWeight = Q.WORD_CLOUD_MAX_WEIGHT;
         this.renderCloud();

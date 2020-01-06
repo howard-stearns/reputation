@@ -23,6 +23,12 @@ body {
     width: 200px;
     opacity: 1;    
 }
+.metadata {
+    width: 100px;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
 .cloud {
     width: 100%;
     height: 300px;
@@ -66,6 +72,7 @@ img[src="qrbutton.jpg"] { width: 30px; }
 }
 #setup i.material-icons { background-color: white; }
 #setup img { max-width: 100%; }
+#picker { position: relative; }
 
 .avatar img {
     border-radius: 50%;
@@ -101,6 +108,7 @@ img[src="qrbutton.jpg"] { width: 30px; }
     margin: 0;
     color: rgba(29, 252, 127, 1);
 }
+#photoDate:before { content: "photo updated "}
 .avatar i:after { content: "check_box" }
 #takeSelfie i:after { content: "photo_camera" }
 #acceptSelfie i:after { content: "check_circle_outline" }
@@ -125,6 +133,7 @@ img[src="qrbutton.jpg"] { width: 30px; }
 #selfie:not(.lineup) #selfieVideo,
 .avatar:not(.selected) .info,
 #nearby:not(.hasSelected) ~ .ratingOptions,
+#nearby:not(.hasSelected) ~ .metadata,
 #qr:not(.none) ~ .cloud,
 #qr:not(.none) ~ .input,
 .none,
